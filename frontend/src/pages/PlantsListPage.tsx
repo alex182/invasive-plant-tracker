@@ -12,6 +12,7 @@ export function PlantsListPage() {
   const { plants, loading } = usePlants();
   const { species } = useSpecies();
   const [statusFilter, setStatusFilter] = useState<Set<PlantStatus>>(new Set(STATUS_ORDER));
+  const [speciesFilter, setSpeciesFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("date_identified");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -36,7 +37,11 @@ export function PlantsListPage() {
   }
 
   const rows = useMemo(() => {
-    const filtered = plants.filter((p) => statusFilter.has(p.status));
+    const filtered = plants.filter((p) => {
+      if (!statusFilter.has(p.status)) return false;
+      if (speciesFilter && p.species_id !== speciesFilter) return false;
+      return true;
+    });
     return [...filtered].sort((a, b) => {
       let cmp = 0;
       if (sortKey === "species") {
@@ -50,7 +55,7 @@ export function PlantsListPage() {
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [plants, statusFilter, sortKey, sortDir, speciesById]);
+  }, [plants, statusFilter, speciesFilter, sortKey, sortDir, speciesById]);
 
   function sortIndicator(key: SortKey) {
     if (sortKey !== key) return null;
@@ -67,6 +72,19 @@ export function PlantsListPage() {
             {STATUS_LABEL[status]}
           </label>
         ))}
+        <select
+          className={styles.speciesSelect}
+          value={speciesFilter}
+          onChange={(e) => setSpeciesFilter(e.target.value)}
+          aria-label="Filter by species"
+        >
+          <option value="">All species</option>
+          {species.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.common_name}
+            </option>
+          ))}
+        </select>
       </div>
 
       {loading && <p className={styles.note}>Loading…</p>}

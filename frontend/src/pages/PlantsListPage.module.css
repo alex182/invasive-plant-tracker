@@ -25,6 +25,15 @@
   font-size: 0.85rem;
 }
 
+.speciesSelect {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
 .dot {
   display: inline-block;
   width: 10px;
