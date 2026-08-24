@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { usePlants } from "../hooks/usePlants";
 import { useSpecies } from "../hooks/useSpecies";
-import { isPendingId } from "../lib/offlineQueue";
 import { STATUS_COLOR, STATUS_LABEL, STATUS_ORDER } from "../lib/status";
 import type { PlantStatus } from "../types";
 import styles from "./PlantsListPage.module.css";
@@ -82,13 +81,11 @@ export function PlantsListPage() {
                 <th onClick={() => toggleSort("status")}>Status {sortIndicator("status")}</th>
                 <th>Location</th>
                 <th onClick={() => toggleSort("date_identified")}>Identified {sortIndicator("date_identified")}</th>
-                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((p) => {
                 const sp = speciesById.get(p.species_id);
-                const pending = isPendingId(p.id);
                 const isPatch = Boolean(p.geometry && p.geometry.length >= 3);
                 return (
                   <tr key={p.id}>
@@ -107,14 +104,6 @@ export function PlantsListPage() {
                         : `${p.latitude.toFixed(4)}, ${p.longitude.toFixed(4)}`}
                     </td>
                     <td>{p.date_identified}</td>
-                    <td className={styles.actions}>
-                      <Link to={`/plants/${p.id}`}>View</Link>
-                      {pending ? (
-                        <span className={styles.pendingNote}>syncing…</span>
-                      ) : (
-                        <Link to={`/plants/${p.id}/edit`}>Edit</Link>
-                      )}
-                    </td>
                   </tr>
                 );
               })}
