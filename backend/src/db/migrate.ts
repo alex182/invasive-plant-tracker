@@ -65,6 +65,11 @@ export function migrate(): void {
 
     CREATE INDEX IF NOT EXISTS idx_treatment_plant ON treatment(plant_id);
     CREATE INDEX IF NOT EXISTS idx_treatment_followup ON treatment(followup_due);
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
   `);
 
   dropColumnIfPresent("species", "photo_url");

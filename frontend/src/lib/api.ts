@@ -1,4 +1,4 @@
-import type { IdentifyResult, Plant, Species, Treatment } from "../types";
+import type { IdentifyResult, NtfySettings, Plant, Species, Treatment } from "../types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -46,6 +46,13 @@ export const api = {
       form.append("photo", file);
       return request<{ results: IdentifyResult[] }>("/identify", { method: "POST", body: form });
     },
+  },
+  ntfy: {
+    getSettings: () => request<NtfySettings>("/ntfy/settings"),
+    saveSettings: (data: { server: string; topic: string; token?: string }) =>
+      request<NtfySettings>("/ntfy/settings", { method: "PUT", body: JSON.stringify(data) }),
+    test: (data: { server: string; topic: string; token?: string }) =>
+      request<{ ok: boolean }>("/ntfy/test", { method: "POST", body: JSON.stringify(data) }),
   },
   treatments: {
     listAll: () => request<Treatment[]>("/treatments"),

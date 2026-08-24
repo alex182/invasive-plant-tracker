@@ -8,6 +8,7 @@ import { GuidePage } from "./pages/GuidePage";
 import { PlantFormPage } from "./pages/PlantFormPage";
 import { PlantDetailPage } from "./pages/PlantDetailPage";
 import { PlantsListPage } from "./pages/PlantsListPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { flushQueue } from "./lib/offlineQueue";
 
 const TITLES: Record<string, string> = {
@@ -16,6 +17,7 @@ const TITLES: Record<string, string> = {
   "/calendar": "Calendar",
   "/guide": "Guide",
   "/add": "New plant",
+  "/settings": "Settings",
 };
 
 function titleFor(pathname: string): string {
@@ -44,6 +46,7 @@ export default function App() {
           <Route path="/add" element={<PlantFormPage />} />
           <Route path="/plants/:id" element={<PlantDetailPage />} />
           <Route path="/plants/:id/edit" element={<PlantFormPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>
       <BottomNav />

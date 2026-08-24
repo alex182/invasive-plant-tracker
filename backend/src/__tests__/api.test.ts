@@ -193,3 +193,46 @@ describe("identify", () => {
     expect(res.status).toBe(503);
   });
 });
+
+describe("ntfy settings", () => {
+  it("defaults to ntfy.sh with no topic and no token", async () => {
+    const request = (await import("supertest")).default;
+    const res = await request(app).get("/api/ntfy/settings");
+    expect(res.status).toBe(200);
+    expect(res.body.server).toBe("https://ntfy.sh");
+    expect(res.body.hasToken).toBe(false);
+  });
+
+  it("rejects an invalid server URL", async () => {
+    const request = (await import("supertest")).default;
+    const res = await request(app).put("/api/ntfy/settings").send({ server: "not-a-url", topic: "my-topic" });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects a topic with invalid characters", async () => {
+    const request = (await import("supertest")).default;
+    const res = await request(app)
+      .put("/api/ntfy/settings")
+      .send({ server: "https://ntfy.sh", topic: "has a space" });
+    expect(res.status).toBe(400);
+  });
+
+  it("saves valid settings and a token, then reports hasToken without leaking it", async () => {
+    const request = (await import("supertest")).default;
+    const res = await request(app)
+      .put("/api/ntfy/settings")
+      .send({ server: "https://ntfy.sh", topic: "my-topic", token: "secret123" });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ server: "https://ntfy.sh", topic: "my-topic", hasToken: true });
+
+    const getRes = await request(app).get("/api/ntfy/settings");
+    expect(getRes.body.hasToken).toBe(true);
+    expect(JSON.stringify(getRes.body)).not.toContain("secret123");
+  });
+
+  it("test endpoint requires a topic", async () => {
+    const request = (await import("supertest")).default;
+    const res = await request(app).post("/api/ntfy/test").send({ server: "https://ntfy.sh" });
+    expect(res.status).toBe(400);
+  });
+});

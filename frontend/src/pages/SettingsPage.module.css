@@ -1,0 +1,107 @@
+.wrap {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  padding-bottom: calc(24px + var(--safe-bottom));
+}
+
+.section {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.section h2 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+}
+
+.note {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.note code {
+  background: var(--bg-elevated-2);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.form {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.field input {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  min-height: 44px;
+}
+
+.linkButton {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.8rem;
+  padding: 2px 0;
+  min-height: auto;
+}
+
+.buttonRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.primaryButton {
+  flex: 1;
+  min-height: 48px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  opacity: 0.6;
+}
+
+.secondaryButton {
+  flex: 1;
+  min-height: 48px;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  background: var(--bg-elevated);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.success {
+  color: var(--status-removed);
+  font-size: 0.85rem;
+}
+
+.error {
+  color: var(--danger);
+  font-size: 0.85rem;
+}

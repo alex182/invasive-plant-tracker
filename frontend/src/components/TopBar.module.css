@@ -20,6 +20,13 @@
   text-overflow: ellipsis;
 }
 
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .toggle {
   background: var(--bg-elevated-2);
   border: 1px solid var(--border);
@@ -28,4 +35,8 @@
   min-height: 40px;
   font-size: 1.1rem;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }

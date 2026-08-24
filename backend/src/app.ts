@@ -8,6 +8,7 @@ import { plantsRouter } from "./routes/plants";
 import { treatmentsRouter } from "./routes/treatments";
 import { exportRouter } from "./routes/export";
 import { identifyRouter } from "./routes/identify";
+import { ntfyRouter } from "./routes/ntfy";
 
 export function createApp(): Express {
   migrate();
@@ -30,6 +31,7 @@ export function createApp(): Express {
   app.use("/api", treatmentsRouter);
   app.use("/api/export", exportRouter);
   app.use("/api/identify", identifyRouter);
+  app.use("/api/ntfy", ntfyRouter);
 
   return app;
 }

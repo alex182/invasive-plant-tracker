@@ -41,6 +41,12 @@ export interface Plant {
   updated_at: string;
 }
 
+export interface NtfySettings {
+  server: string;
+  topic: string;
+  hasToken: boolean;
+}
+
 export interface IdentifyResult {
   scientific_name: string;
   common_names: string[];
