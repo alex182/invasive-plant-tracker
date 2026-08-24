@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { MapContainer, Polygon, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -7,8 +7,21 @@ import { useSpecies } from "../hooks/useSpecies";
 import { api } from "../lib/api";
 import { queuePlantCreate } from "../lib/offlineQueue";
 import { STATUS_LABEL, STATUS_ORDER } from "../lib/status";
-import type { Plant, PlantStatus } from "../types";
+import type { IdentifyResult, Plant, PlantStatus, Species } from "../types";
 import styles from "./PlantFormPage.module.css";
+
+/** Matches a Pl@ntNet scientific name against our small tracked catalog by exact genus+species. */
+function matchSpeciesId(scientificName: string, catalog: Species[]): string | null {
+  const target = scientificName.toLowerCase().trim().split(/\s+/).slice(0, 2).join(" ");
+  for (const s of catalog) {
+    const candidates = s.scientific_name.split(",").map((n) => n.trim().toLowerCase());
+    for (const candidate of candidates) {
+      const candidateGenusSpecies = candidate.split(/\s+/).slice(0, 2).join(" ");
+      if (candidateGenusSpecies === target) return s.id;
+    }
+  }
+  return null;
+}
 
 function FitToPolygon({ positions }: { positions: [number, number][] }) {
   const map = useMap();
@@ -56,6 +69,10 @@ export function PlantFormPage() {
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [identifying, setIdentifying] = useState(false);
+  const [identifyResults, setIdentifyResults] = useState<IdentifyResult[] | null>(null);
+  const [identifyError, setIdentifyError] = useState<string | null>(null);
+  const identifyInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isEdit || !id) return;
@@ -88,6 +105,23 @@ export function PlantFormPage() {
       setAccuracy(String(pos.accuracy));
     } catch {
       // geoError state already set by the hook; surfaced in the UI below.
+    }
+  }
+
+  async function handleIdentifyPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setIdentifying(true);
+    setIdentifyError(null);
+    setIdentifyResults(null);
+    try {
+      const { results } = await api.identify.fromPhoto(file);
+      setIdentifyResults(results);
+    } catch (err) {
+      setIdentifyError(err instanceof Error ? err.message : "Couldn't identify this photo.");
+    } finally {
+      setIdentifying(false);
     }
   }
 
@@ -162,6 +196,50 @@ export function PlantFormPage() {
             </option>
           ))}
         </select>
+      </div>
+
+      <div className={styles.field}>
+        <button
+          type="button"
+          className={styles.gpsButton}
+          onClick={() => identifyInputRef.current?.click()}
+          disabled={identifying}
+        >
+          📷 {identifying ? "Identifying…" : "Identify from photo"}
+        </button>
+        <input
+          ref={identifyInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          style={{ display: "none" }}
+          onChange={handleIdentifyPhoto}
+        />
+        <div className={styles.gpsNote}>Suggestions only — confirm the species yourself before saving.</div>
+        {identifyError && <div className={styles.error}>{identifyError}</div>}
+        {identifyResults && (
+          <div className={styles.identifyResults}>
+            {identifyResults.length === 0 && <p className={styles.gpsNote}>No confident matches. Try a clearer photo.</p>}
+            {identifyResults.map((r, i) => {
+              const matchId = matchSpeciesId(r.scientific_name, species);
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  className={styles.identifyChip}
+                  onClick={() => matchId && setSpeciesId(matchId)}
+                  disabled={!matchId}
+                >
+                  <strong>{r.common_names[0] ?? r.scientific_name}</strong>
+                  <span className={styles.gpsNote}>
+                    {" "}
+                    ({Math.round(r.score * 100)}% match{matchId ? "" : " · not in your tracked list"})
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {geometry ? (

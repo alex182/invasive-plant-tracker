@@ -89,3 +89,23 @@
 .gpsButton:disabled {
   opacity: 0.6;
 }
+
+.identifyResults {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.identifyChip {
+  text-align: left;
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  padding: 8px 12px;
+}
+
+.identifyChip:disabled {
+  opacity: 0.55;
+}

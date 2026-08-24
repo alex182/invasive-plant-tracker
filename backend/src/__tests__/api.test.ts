@@ -183,3 +183,13 @@ describe("export", () => {
     expect(ring[0]).toEqual(ring[ring.length - 1]);
   });
 });
+
+describe("identify", () => {
+  it("returns 503 when PLANTNET_API_KEY is not configured", async () => {
+    const request = (await import("supertest")).default;
+    const res = await request(app)
+      .post("/api/identify")
+      .attach("photo", Buffer.from("fake-image-bytes"), "leaf.jpg");
+    expect(res.status).toBe(503);
+  });
+});

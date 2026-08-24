@@ -41,6 +41,12 @@ export interface Plant {
   updated_at: string;
 }
 
+export interface IdentifyResult {
+  scientific_name: string;
+  common_names: string[];
+  score: number;
+}
+
 export interface Treatment {
   id: string;
   plant_id: string;

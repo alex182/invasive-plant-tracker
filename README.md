@@ -6,6 +6,7 @@ A field-use PWA for tracking and coordinating invasive plant removal. Drop a pin
 
 - **Map** — point plants and polygon "patches," clustered markers, status/species filters, offline-friendly
 - **Add a plant** — drop a pin at your GPS location, long-press the map, or walk a patch outline live with GPS ("walk mode")
+- **Photo species suggestions** — snap a photo on the add-plant form to get species suggestions from Pl@ntNet (optional, needs an API key; suggestions only — you still confirm the species yourself)
 - **Species guide** — identification photos (including whole-plant/habit shots), removal method and timing notes
 - **Treatments** — log removal/herbicide events per plant with follow-up due dates
 - **Calendar** — upcoming and overdue follow-ups
@@ -32,6 +33,18 @@ docker compose up -d --build
 - Backend API: http://localhost:3001/api
 
 The first boot seeds the species reference data automatically. Plant/treatment data lives in the `db_data` volume; uploaded photos live in `uploads_data`.
+
+### Photo species suggestions (optional)
+
+The "Identify from photo" button on the add-plant form calls [Pl@ntNet's API](https://my.plantnet.org/) to suggest a species from a photo. It's off by default; to enable it:
+
+```bash
+cp .env.example .env
+# edit .env and set PLANTNET_API_KEY to a key from https://my.plantnet.org/ (free for non-commercial use)
+docker compose up -d --build backend
+```
+
+Docker Compose reads `.env` automatically (it's gitignored, so your key never gets committed). Without a key configured, the button still shows but returns a clear "not configured" message instead of erroring.
 
 ### HTTPS for GPS features (walk mode, drop-pin, locate-me)
 
@@ -117,6 +130,8 @@ The backend reads these environment variables (see `docker-compose.yml` for the 
 | `PORT`        | `3001`              | Backend HTTP port                 |
 | `DATA_DIR`    | `./data`             | SQLite database location          |
 | `UPLOADS_DIR` | `./uploads`          | Uploaded plant photo storage      |
+| `PLANTNET_API_KEY` | *(unset)* | Enables the "Identify from photo" feature — get one at [my.plantnet.org](https://my.plantnet.org/) |
+| `PLANTNET_PROJECT` | `all`  | Pl@ntNet flora dataset to match against |
 
 ## Project layout
 

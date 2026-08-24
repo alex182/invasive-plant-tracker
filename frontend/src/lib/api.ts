@@ -1,4 +1,4 @@
-import type { Plant, Species, Treatment } from "../types";
+import type { IdentifyResult, Plant, Species, Treatment } from "../types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -38,6 +38,13 @@ export const api = {
       const form = new FormData();
       form.append("photo", file);
       return request<Plant>(`/plants/${id}/photo`, { method: "POST", body: form });
+    },
+  },
+  identify: {
+    fromPhoto: (file: File) => {
+      const form = new FormData();
+      form.append("photo", file);
+      return request<{ results: IdentifyResult[] }>("/identify", { method: "POST", body: form });
     },
   },
   treatments: {
