@@ -1,0 +1,165 @@
+.wrap {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  padding-bottom: calc(24px + var(--safe-bottom));
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.season {
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.season h2 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.seasonSpecies {
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+}
+
+.seasonSpecies strong {
+  display: block;
+}
+
+.seasonPlantList {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.seasonPlantList a {
+  color: var(--text);
+}
+
+.monthNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.monthNav button {
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated-2);
+}
+
+.monthNav h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.weekday {
+  text-align: center;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  padding-bottom: 4px;
+}
+
+.day {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-size: 0.78rem;
+  padding: 2px;
+}
+
+.day.outside {
+  opacity: 0.35;
+}
+
+.day.today {
+  border-color: var(--accent);
+}
+
+.day.selected {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.dots {
+  display: flex;
+  gap: 2px;
+}
+
+.dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.eventList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.event {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  text-decoration: none;
+  color: var(--text);
+  display: block;
+}
+
+.event.overdue {
+  border-color: var(--danger);
+}
+
+.eventType {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
+.exportRow {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 0.82rem;
+}

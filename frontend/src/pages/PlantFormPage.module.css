@@ -1,0 +1,91 @@
+.form {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  padding-bottom: calc(24px + var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 560px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.field input,
+.field select,
+.field textarea {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  min-height: 44px;
+}
+
+.field textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.patchPreview {
+  width: 100%;
+  height: 160px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.field input:disabled {
+  opacity: 0.65;
+}
+
+.coords {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.submit {
+  margin-top: 6px;
+  min-height: 48px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.error {
+  color: var(--danger);
+  font-size: 0.85rem;
+}
+
+.gpsNote {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.gpsButton {
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: var(--bg-elevated);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.gpsButton:disabled {
+  opacity: 0.6;
+}

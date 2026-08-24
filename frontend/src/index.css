@@ -1,0 +1,99 @@
+:root {
+  --bg: #14161a;
+  --bg-elevated: #1c1f24;
+  --bg-elevated-2: #23262d;
+  --border: #333740;
+  --text: #e7e9ec;
+  --text-muted: #9aa0aa;
+  --accent: #6bbf59;
+  --accent-contrast: #0b1a08;
+  --danger: #e2574c;
+  --status-planned: #7a8590;
+  --status-pending: #e0a52c;
+  --status-removed: #4fb75c;
+  --event-start: #5b8dee;
+  --event-treatment: #b478e0;
+  --event-followup: #e0a52c;
+  --shadow: rgba(0, 0, 0, 0.4) 0 8px 24px -8px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  color-scheme: dark;
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:root[data-theme="light"] {
+  --bg: #f6f7f5;
+  --bg-elevated: #ffffff;
+  --bg-elevated-2: #eef0ec;
+  --border: #d8dbd4;
+  --text: #191d16;
+  --text-muted: #5a6155;
+  --accent: #2f7a2a;
+  --accent-contrast: #f2fbef;
+  --danger: #c1362a;
+  --status-planned: #6b7280;
+  --status-pending: #b8790f;
+  --status-removed: #2f7a2a;
+  --event-start: #2d5fc4;
+  --event-treatment: #8a3fc0;
+  --event-followup: #b8790f;
+  --shadow: rgba(0, 0, 0, 0.08) 0 8px 24px -8px;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  overscroll-behavior-y: contain;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  /* height:100% (above) resolves against the browser's large viewport on
+     mobile, which is taller than what's actually visible when the address
+     bar is showing — pushing bottom-anchored UI (the map FABs) off-screen
+     until the page is zoomed out or scrolled. 100svh is always the visible
+     viewport, so it can't overflow like that. */
+  height: 100svh;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+a {
+  color: var(--accent);
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+button {
+  cursor: pointer;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  line-height: 1.2;
+}

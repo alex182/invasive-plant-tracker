@@ -1,0 +1,16 @@
+{
+  "name": "invasive-plant-tracker",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20-bookworm",
+  "forwardPorts": [3000, 3001],
+  "portsAttributes": {
+    "3000": { "label": "Frontend (Vite)" },
+    "3001": { "label": "Backend (Express API)" }
+  },
+  "postCreateCommand": "npm install --prefix backend && npm install --prefix frontend",
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "esbenp.prettier-vscode"]
+    }
+  },
+  "remoteUser": "node"
+}

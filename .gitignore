@@ -1,0 +1,22 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# backend
+backend/data/
+backend/uploads/
+backend/*.sqlite
+backend/*.sqlite-*
+
+# frontend
+frontend/dist/
+
+# editors / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+
+# env
+.env
+.env.local

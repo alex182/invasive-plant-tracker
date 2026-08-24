@@ -1,0 +1,11 @@
+{
+	# Clients connecting by bare IP (no hostname) often send no SNI at all,
+	# which leaves Caddy unable to pick a certificate. Force it to assume
+	# our LAN IP in that case instead of failing the handshake outright.
+	default_sni 192.168.1.231
+}
+
+https://192.168.1.231, https://localhost, https://127.0.0.1 {
+	tls internal
+	reverse_proxy frontend:3000
+}
