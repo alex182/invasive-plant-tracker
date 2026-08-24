@@ -7,10 +7,12 @@ import { CalendarPage } from "./pages/CalendarPage";
 import { GuidePage } from "./pages/GuidePage";
 import { PlantFormPage } from "./pages/PlantFormPage";
 import { PlantDetailPage } from "./pages/PlantDetailPage";
+import { PlantsListPage } from "./pages/PlantsListPage";
 import { flushQueue } from "./lib/offlineQueue";
 
 const TITLES: Record<string, string> = {
   "/": "Map",
+  "/plants": "Plants",
   "/calendar": "Calendar",
   "/guide": "Guide",
   "/add": "New plant",
@@ -36,6 +38,7 @@ export default function App() {
       <main style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, position: "relative" }}>
         <Routes>
           <Route path="/" element={<MapPage />} />
+          <Route path="/plants" element={<PlantsListPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/guide" element={<GuidePage />} />
           <Route path="/add" element={<PlantFormPage />} />

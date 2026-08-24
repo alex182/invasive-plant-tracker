@@ -4,13 +4,14 @@ import { MemoryRouter } from "react-router-dom";
 import { BottomNav } from "../components/BottomNav";
 
 describe("BottomNav", () => {
-  it("renders all four tabs", () => {
+  it("renders all five tabs", () => {
     render(
       <MemoryRouter>
         <BottomNav />
       </MemoryRouter>
     );
     expect(screen.getByText("Map")).toBeInTheDocument();
+    expect(screen.getByText("Plants")).toBeInTheDocument();
     expect(screen.getByText("Calendar")).toBeInTheDocument();
     expect(screen.getByText("Guide")).toBeInTheDocument();
     expect(screen.getByText("Add")).toBeInTheDocument();
