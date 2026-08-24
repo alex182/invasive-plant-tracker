@@ -4,14 +4,18 @@ A field-use PWA for tracking and coordinating invasive plant removal. Drop a pin
 
 ## Features
 
-- **Map** — point plants and polygon "patches," clustered markers, status/species filters, offline-friendly
-- **Add a plant** — drop a pin at your GPS location, long-press the map, or walk a patch outline live with GPS ("walk mode")
-- **Photo species suggestions** — snap a photo on the add-plant form to get species suggestions from Pl@ntNet (optional, needs an API key; suggestions only — you still confirm the species yourself)
-- **Species guide** — identification photos (including whole-plant/habit shots), removal method and timing notes
-- **Treatments** — log removal/herbicide events per plant with follow-up due dates
+- **Map** — point plants and polygon "patches" rendered together, clustered markers, status/species filters, dark/light theme
+- **Add a plant** — drop a pin at your GPS location, or long-press (right-click on desktop) the map to place one manually
+- **Draw a patch** — trace a patch outline by tapping vertices on the map, or walk its edge live with GPS ("walk mode": auto-drops a point every ~3m, with pause/resume, undo, and a live accuracy circle)
+- **Locate me** — on-demand button that drops a "you are here" marker and recenters the map, without constantly polling GPS in the background
+- **Photo species suggestions** — snap a photo on the add-plant form to get species suggestions from Pl@ntNet, shown as tappable chips matched against your tracked species list (optional, needs an API key; suggestions only — you still confirm the species yourself)
+- **Species guide** — identification photos (including whole-plant/habit shots sourced from Bugwood/Invasive.org), removal method and timing notes, source links
+- **Treatments** — log removal/herbicide events per plant with auto-suggested follow-up dates
 - **Calendar** — upcoming and overdue follow-ups
-- **Offline queue** — new plants/treatments created while offline sync automatically once back online
-- **Export** — CSV and GeoJSON (patches export as GeoJSON polygons)
+- **Photos** — attach a photo to a plant record from its detail page
+- **Offline queue** — new plants/treatments created while offline are queued in the browser and synced automatically once back online
+- **Export** — CSV and GeoJSON (patches export as closed GeoJSON polygons, points as GeoJSON points)
+- **Installable PWA** — add to home screen, works offline for previously loaded data
 
 ## Tech stack
 
