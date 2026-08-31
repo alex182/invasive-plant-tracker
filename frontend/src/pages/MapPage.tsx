@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { MapContainer, TileLayer, Polygon, Polyline, Circle, CircleMarker, Popup, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -262,6 +262,8 @@ function RecenterOnLocate({ position }: { position: [number, number] | null }) {
 
 export function MapPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const returnToAddRef = useRef<URLSearchParams | null>(null);
   const { plants } = usePlants();
   const { species } = useSpecies();
   const { getPosition, loading: locating } = useGeolocation();
@@ -277,6 +279,18 @@ export function MapPage() {
   const [walkPaused, setWalkPaused] = useState(false);
   const [walkPos, setWalkPos] = useState<[number, number] | null>(null);
   const [walkAccuracy, setWalkAccuracy] = useState<number | null>(null);
+
+  useEffect(() => {
+    const draw = searchParams.get("draw");
+    if (draw !== "tap" && draw !== "walk") return;
+    const rest = new URLSearchParams(searchParams);
+    rest.delete("draw");
+    returnToAddRef.current = rest;
+    startDrawing(draw);
+    setSearchParams({}, { replace: true });
+    // Runs once on mount to consume the incoming ?draw= handoff from the Add form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const speciesById = useMemo(() => new Map(species.map((s) => [s.id, s])), [species]);
 
@@ -356,6 +370,8 @@ export function MapPage() {
   }
 
   function cancelDrawing() {
+    const returnToAdd = returnToAddRef.current;
+    returnToAddRef.current = null;
     setDrawing(false);
     setWalkMode(false);
     setWalkPaused(false);
@@ -363,6 +379,7 @@ export function MapPage() {
     setWalkAccuracy(null);
     setDrawPoints([]);
     setHint(null);
+    if (returnToAdd) navigate(`/add?${returnToAdd.toString()}`);
   }
 
   function undoLastPoint() {
@@ -373,7 +390,11 @@ export function MapPage() {
     if (drawPoints.length < 3) return;
     const lat = drawPoints.reduce((sum, p) => sum + p[0], 0) / drawPoints.length;
     const lng = drawPoints.reduce((sum, p) => sum + p[1], 0) / drawPoints.length;
-    const geometry = encodeURIComponent(JSON.stringify(drawPoints));
+    const params = returnToAddRef.current ?? new URLSearchParams();
+    params.set("lat", String(lat));
+    params.set("lng", String(lng));
+    params.set("geometry", JSON.stringify(drawPoints));
+    returnToAddRef.current = null;
     setDrawing(false);
     setWalkMode(false);
     setWalkPaused(false);
@@ -381,7 +402,7 @@ export function MapPage() {
     setWalkAccuracy(null);
     setDrawPoints([]);
     setHint(null);
-    navigate(`/add?lat=${lat}&lng=${lng}&geometry=${geometry}`);
+    navigate(`/add?${params.toString()}`);
   }
 
   return (

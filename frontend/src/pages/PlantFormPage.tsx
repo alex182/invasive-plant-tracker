@@ -46,6 +46,10 @@ function parseGeometryParam(raw: string | null): [number, number][] | null {
   return null;
 }
 
+function parseStatusParam(raw: string | null): PlantStatus | null {
+  return raw && (STATUS_ORDER as string[]).includes(raw) ? (raw as PlantStatus) : null;
+}
+
 export function PlantFormPage() {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
@@ -54,16 +58,16 @@ export function PlantFormPage() {
   const { species, loading: speciesLoading } = useSpecies();
   const { getPosition, loading: locating, error: geoError } = useGeolocation();
 
-  const [speciesId, setSpeciesId] = useState("");
+  const [speciesId, setSpeciesId] = useState(searchParams.get("species") ?? "");
   const [latitude, setLatitude] = useState(searchParams.get("lat") ?? "");
   const [longitude, setLongitude] = useState(searchParams.get("lng") ?? "");
   const [accuracy, setAccuracy] = useState(searchParams.get("accuracy") ?? "");
-  const [status, setStatus] = useState<PlantStatus>("planned");
-  const [method, setMethod] = useState("");
-  const [notes, setNotes] = useState("");
-  const [dateIdentified, setDateIdentified] = useState(todayISO());
-  const [dateStarted, setDateStarted] = useState("");
-  const [dateRemoved, setDateRemoved] = useState("");
+  const [status, setStatus] = useState<PlantStatus>(parseStatusParam(searchParams.get("status")) ?? "planned");
+  const [method, setMethod] = useState(searchParams.get("method") ?? "");
+  const [notes, setNotes] = useState(searchParams.get("notes") ?? "");
+  const [dateIdentified, setDateIdentified] = useState(searchParams.get("dateIdentified") ?? todayISO());
+  const [dateStarted, setDateStarted] = useState(searchParams.get("dateStarted") ?? "");
+  const [dateRemoved, setDateRemoved] = useState(searchParams.get("dateRemoved") ?? "");
   const [geometry, setGeometry] = useState<[number, number][] | null>(
     parseGeometryParam(searchParams.get("geometry"))
   );
@@ -96,6 +100,19 @@ export function PlantFormPage() {
       setSpeciesId(species[0].id);
     }
   }, [isEdit, species, speciesId]);
+
+  function handleDrawPatch(mode: "tap" | "walk") {
+    const params = new URLSearchParams();
+    params.set("draw", mode);
+    if (speciesId) params.set("species", speciesId);
+    if (status) params.set("status", status);
+    if (method) params.set("method", method);
+    if (notes) params.set("notes", notes);
+    if (dateIdentified) params.set("dateIdentified", dateIdentified);
+    if (dateStarted) params.set("dateStarted", dateStarted);
+    if (dateRemoved) params.set("dateRemoved", dateRemoved);
+    navigate(`/?${params.toString()}`);
+  }
 
   async function handleUseCurrentLocation() {
     try {
@@ -264,9 +281,21 @@ export function PlantFormPage() {
           <div className={styles.gpsNote}>{geometry.length} points · center point shown below</div>
         </div>
       ) : (
-        <button type="button" className={styles.gpsButton} onClick={handleUseCurrentLocation} disabled={locating}>
-          📍 {locating ? "Getting location…" : "Use current GPS location"}
-        </button>
+        <div className={styles.locationChoice}>
+          <button type="button" className={styles.gpsButton} onClick={handleUseCurrentLocation} disabled={locating}>
+            📍 {locating ? "Getting location…" : "Use current GPS location"}
+          </button>
+          {!isEdit && (
+            <>
+              <button type="button" className={styles.gpsButton} onClick={() => handleDrawPatch("tap")}>
+                ⬟ Draw a patch outline
+              </button>
+              <button type="button" className={styles.gpsButton} onClick={() => handleDrawPatch("walk")}>
+                🚶 Walk a patch outline
+              </button>
+            </>
+          )}
+        </div>
       )}
 
       <div className={styles.coords}>

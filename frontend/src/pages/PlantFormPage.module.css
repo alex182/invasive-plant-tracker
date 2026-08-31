@@ -76,6 +76,12 @@
   color: var(--text-muted);
 }
 
+.locationChoice {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .gpsButton {
   min-height: 44px;
   border-radius: 8px;
