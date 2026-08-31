@@ -30,13 +30,21 @@
   margin: 2px 0 0;
 }
 
+.speciesThumbButton {
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
 .speciesThumb {
   width: 48px;
   height: 48px;
   border-radius: 10px;
   object-fit: cover;
   border: 1px solid var(--border);
-  flex-shrink: 0;
+  display: block;
 }
 
 .badge {
@@ -127,12 +135,22 @@
   border-color: var(--accent);
 }
 
+.photoButton {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
 .photo {
   width: 100%;
   border-radius: 10px;
   border: 1px solid var(--border);
   max-height: 320px;
   object-fit: cover;
+  display: block;
 }
 
 .treatmentItem {

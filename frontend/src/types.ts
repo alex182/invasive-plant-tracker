@@ -7,6 +7,25 @@ export interface SpeciesPhoto {
   source_url: string;
 }
 
+export interface RemovalMethod {
+  /** e.g. "Mechanical / hand-pull", "Cut-stump", "Basal bark", "Foliar spray", "Prescribed fire". */
+  method: string;
+  timing: string;
+  /** Product/active ingredient + rate, or "" for a non-chemical method. */
+  herbicide: string;
+  how_to: string;
+  notes: string;
+}
+
+export interface SpeciesLookalike {
+  /** Common name of the non-invasive/native species it's confused with. */
+  name: string;
+  scientific_name: string;
+  /** How to distinguish it from the invasive species in this record. */
+  how_to_tell: string;
+  photo: SpeciesPhoto | null;
+}
+
 export interface Species {
   id: string;
   common_name: string;
@@ -20,6 +39,8 @@ export interface Species {
   source_links: string[];
   active_months: number[];
   photos: SpeciesPhoto[];
+  lookalikes: SpeciesLookalike[];
+  removal_methods: RemovalMethod[];
 }
 
 export interface Plant {
@@ -45,6 +66,12 @@ export interface NtfySettings {
   server: string;
   topic: string;
   hasToken: boolean;
+}
+
+export interface IdentifySettings {
+  hasKey: boolean;
+  keyFromEnv: boolean;
+  project: string;
 }
 
 export interface IdentifyResult {

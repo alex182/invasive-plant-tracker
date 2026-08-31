@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import { isPendingId, pendingPlants, queueTreatmentCreate } from "../lib/offlineQueue";
 import { useSpecies } from "../hooks/useSpecies";
 import { STATUS_COLOR, STATUS_LABEL, STATUS_ORDER } from "../lib/status";
+import { ImageLightbox, type LightboxPhoto } from "../components/ImageLightbox";
 import type { Plant, PlantStatus, Species, Treatment } from "../types";
 import styles from "./PlantDetailPage.module.css";
 
@@ -42,6 +43,7 @@ export function PlantDetailPage() {
   const [treatments, setTreatments] = useState<Treatment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [speciesPhotoFailed, setSpeciesPhotoFailed] = useState(false);
+  const [lightboxPhoto, setLightboxPhoto] = useState<LightboxPhoto | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [tDate, setTDate] = useState(todayISO());
@@ -147,13 +149,27 @@ export function PlantDetailPage() {
     <div className={styles.wrap}>
       <div className={styles.headerRow}>
         {species.photos.length > 0 && !speciesPhotoFailed && (
-          <img
-            className={styles.speciesThumb}
-            src={species.photos[0].url}
-            alt={species.common_name}
-            loading="lazy"
-            onError={() => setSpeciesPhotoFailed(true)}
-          />
+          <button
+            type="button"
+            className={styles.speciesThumbButton}
+            onClick={() =>
+              setLightboxPhoto({
+                url: species.photos[0].url,
+                alt: species.common_name,
+                caption: species.photos[0].caption,
+                attribution: species.photos[0].attribution,
+                source_url: species.photos[0].source_url,
+              })
+            }
+          >
+            <img
+              className={styles.speciesThumb}
+              src={species.photos[0].url}
+              alt={species.common_name}
+              loading="lazy"
+              onError={() => setSpeciesPhotoFailed(true)}
+            />
+          </button>
         )}
         <div style={{ flex: 1 }}>
           <h2 className={styles.speciesName}>{species.common_name}</h2>
@@ -239,7 +255,15 @@ export function PlantDetailPage() {
       {!isPending && (
         <div className={styles.section}>
           <h2>Photo</h2>
-          {plant.photo_path && <img className={styles.photo} src={plant.photo_path} alt={species.common_name} />}
+          {plant.photo_path && (
+            <button
+              type="button"
+              className={styles.photoButton}
+              onClick={() => setLightboxPhoto({ url: plant.photo_path!, alt: species.common_name })}
+            >
+              <img className={styles.photo} src={plant.photo_path} alt={species.common_name} />
+            </button>
+          )}
           <div className={styles.actionRow} style={{ marginTop: 10 }}>
             <label>
               📷 {plant.photo_path ? "Replace photo" : "Add photo"}
@@ -334,6 +358,15 @@ export function PlantDetailPage() {
             🗑️ Delete
           </button>
         </div>
+      )}
+
+      {lightboxPhoto && (
+        <ImageLightbox
+          photos={[lightboxPhoto]}
+          index={0}
+          onClose={() => setLightboxPhoto(null)}
+          onNavigate={() => {}}
+        />
       )}
     </div>
   );

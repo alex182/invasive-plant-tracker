@@ -16,6 +16,8 @@ interface SpeciesRow {
   source_links: string;
   active_months: string;
   photos: string;
+  lookalikes: string;
+  removal_methods: string;
 }
 
 function serialize(row: SpeciesRow) {
@@ -24,6 +26,8 @@ function serialize(row: SpeciesRow) {
     source_links: JSON.parse(row.source_links),
     active_months: JSON.parse(row.active_months),
     photos: JSON.parse(row.photos),
+    lookalikes: JSON.parse(row.lookalikes),
+    removal_methods: JSON.parse(row.removal_methods),
   };
 }
 

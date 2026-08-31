@@ -192,6 +192,37 @@ describe("identify", () => {
       .attach("photo", Buffer.from("fake-image-bytes"), "leaf.jpg");
     expect(res.status).toBe(503);
   });
+
+  it("GET /api/identify/settings reports no key by default", async () => {
+    const request = (await import("supertest")).default;
+    const res = await request(app).get("/api/identify/settings");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ hasKey: false, keyFromEnv: false, project: "all" });
+  });
+
+  it("rejects a blank API key", async () => {
+    const request = (await import("supertest")).default;
+    const res = await request(app).put("/api/identify/settings").send({ apiKey: "   " });
+    expect(res.status).toBe(400);
+  });
+
+  it("saves an API key and project, reports hasKey without leaking the key, then clears it", async () => {
+    const request = (await import("supertest")).default;
+    const put = await request(app)
+      .put("/api/identify/settings")
+      .send({ apiKey: "2b10secretkey", project: "k-world-flora" });
+    expect(put.status).toBe(200);
+    expect(put.body).toEqual({ hasKey: true, keyFromEnv: false, project: "k-world-flora" });
+
+    const get = await request(app).get("/api/identify/settings");
+    expect(get.body.hasKey).toBe(true);
+    expect(JSON.stringify(get.body)).not.toContain("2b10secretkey");
+
+    const cleared = await request(app)
+      .put("/api/identify/settings")
+      .send({ apiKey: "", project: "" });
+    expect(cleared.body).toEqual({ hasKey: false, keyFromEnv: false, project: "all" });
+  });
 });
 
 describe("ntfy settings", () => {

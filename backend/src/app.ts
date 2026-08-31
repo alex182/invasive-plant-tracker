@@ -2,7 +2,7 @@ import express, { Express } from "express";
 import cors from "cors";
 import path from "node:path";
 import { migrate } from "./db/migrate";
-import { seedIfEmpty, backfillPhotos } from "./db/seed";
+import { seedIfEmpty, backfillPhotos, backfillLookalikes, backfillRemovalMethods } from "./db/seed";
 import { speciesRouter } from "./routes/species";
 import { plantsRouter } from "./routes/plants";
 import { treatmentsRouter } from "./routes/treatments";
@@ -14,6 +14,8 @@ export function createApp(): Express {
   migrate();
   seedIfEmpty();
   backfillPhotos();
+  backfillLookalikes();
+  backfillRemovalMethods();
 
   const app = express();
   app.use(cors());

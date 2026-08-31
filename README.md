@@ -134,8 +134,8 @@ The backend reads these environment variables (see `docker-compose.yml` for the 
 | `PORT`        | `3001`              | Backend HTTP port                 |
 | `DATA_DIR`    | `./data`             | SQLite database location          |
 | `UPLOADS_DIR` | `./uploads`          | Uploaded plant photo storage      |
-| `PLANTNET_API_KEY` | *(unset)* | Enables the "Identify from photo" feature — get one at [my.plantnet.org](https://my.plantnet.org/) |
-| `PLANTNET_PROJECT` | `all`  | Pl@ntNet flora dataset to match against |
+| `PLANTNET_API_KEY` | *(unset)* | Enables the "Identify from photo" feature — get one at [my.plantnet.org](https://my.plantnet.org/). Can also be set at runtime on the **Settings** page, which takes precedence over this variable. |
+| `PLANTNET_PROJECT` | `all`  | Pl@ntNet flora dataset to match against (also settable on the Settings page) |
 
 ## Project layout
 

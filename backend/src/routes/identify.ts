@@ -1,12 +1,19 @@
 import { Router } from "express";
 import multer from "multer";
+import { getSetting, setSetting, deleteSetting } from "../lib/settings";
 
 export const identifyRouter = Router();
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
-const PLANTNET_API_KEY = process.env.PLANTNET_API_KEY;
-const PLANTNET_PROJECT = process.env.PLANTNET_PROJECT || "all";
+/** Stored Settings value wins over the server env var, so the key can be managed from the UI. */
+function getApiKey(): string | null {
+  return getSetting("plantnet_api_key") || process.env.PLANTNET_API_KEY || null;
+}
+
+function getProject(): string {
+  return getSetting("plantnet_project") || process.env.PLANTNET_PROJECT || "all";
+}
 
 interface PlantNetSpecies {
   scientificNameWithoutAuthor?: string;
@@ -23,8 +30,45 @@ interface PlantNetResponse {
   results?: PlantNetResult[];
 }
 
+identifyRouter.get("/settings", (_req, res) => {
+  res.json({
+    hasKey: Boolean(getApiKey()),
+    keyFromEnv: !getSetting("plantnet_api_key") && Boolean(process.env.PLANTNET_API_KEY),
+    project: getProject(),
+  });
+});
+
+identifyRouter.put("/settings", (req, res) => {
+  const { apiKey, project } = req.body ?? {};
+
+  if (apiKey === "") {
+    deleteSetting("plantnet_api_key");
+  } else if (typeof apiKey === "string") {
+    const trimmed = apiKey.trim();
+    if (!trimmed) {
+      res.status(400).json({ error: "apiKey must not be blank" });
+      return;
+    }
+    setSetting("plantnet_api_key", trimmed);
+  }
+  // apiKey === undefined leaves any existing stored key untouched.
+
+  if (project === "") {
+    deleteSetting("plantnet_project");
+  } else if (typeof project === "string") {
+    setSetting("plantnet_project", project.trim());
+  }
+
+  res.json({
+    hasKey: Boolean(getApiKey()),
+    keyFromEnv: !getSetting("plantnet_api_key") && Boolean(process.env.PLANTNET_API_KEY),
+    project: getProject(),
+  });
+});
+
 identifyRouter.post("/", upload.single("photo"), async (req, res) => {
-  if (!PLANTNET_API_KEY) {
+  const apiKey = getApiKey();
+  if (!apiKey) {
     res.status(503).json({ error: "Plant identification is not configured on this server." });
     return;
   }
@@ -41,7 +85,7 @@ identifyRouter.post("/", upload.single("photo"), async (req, res) => {
   );
   form.append("organs", "auto");
 
-  const url = `https://my-api.plantnet.org/v2/identify/${encodeURIComponent(PLANTNET_PROJECT)}?api-key=${encodeURIComponent(PLANTNET_API_KEY)}`;
+  const url = `https://my-api.plantnet.org/v2/identify/${encodeURIComponent(getProject())}?api-key=${encodeURIComponent(apiKey)}`;
 
   let upstream: Response;
   try {

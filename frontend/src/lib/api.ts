@@ -1,4 +1,5 @@
-import type { IdentifyResult, NtfySettings, Plant, Species, Treatment } from "../types";
+import type { IdentifyResult, IdentifySettings, NtfySettings, Plant, Species, Treatment } from "../types";
+import { downscaleImage } from "./resizeImage";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -34,18 +35,21 @@ export const api = {
     update: (id: string, data: Partial<Plant>) =>
       request<Plant>(`/plants/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     remove: (id: string) => request<void>(`/plants/${id}`, { method: "DELETE" }),
-    uploadPhoto: (id: string, file: File) => {
+    uploadPhoto: async (id: string, file: File) => {
       const form = new FormData();
-      form.append("photo", file);
+      form.append("photo", await downscaleImage(file));
       return request<Plant>(`/plants/${id}/photo`, { method: "POST", body: form });
     },
   },
   identify: {
-    fromPhoto: (file: File) => {
+    fromPhoto: async (file: File) => {
       const form = new FormData();
-      form.append("photo", file);
+      form.append("photo", await downscaleImage(file));
       return request<{ results: IdentifyResult[] }>("/identify", { method: "POST", body: form });
     },
+    getSettings: () => request<IdentifySettings>("/identify/settings"),
+    saveSettings: (data: { apiKey?: string; project?: string }) =>
+      request<IdentifySettings>("/identify/settings", { method: "PUT", body: JSON.stringify(data) }),
   },
   ntfy: {
     getSettings: () => request<NtfySettings>("/ntfy/settings"),

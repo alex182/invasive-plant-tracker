@@ -76,5 +76,7 @@ export function migrate(): void {
   dropColumnIfPresent("species", "photo_attribution");
   dropColumnIfPresent("species", "photo_source_url");
   addColumnIfMissing("species", "photos", "TEXT NOT NULL DEFAULT '[]'");
+  addColumnIfMissing("species", "lookalikes", "TEXT NOT NULL DEFAULT '[]'");
+  addColumnIfMissing("species", "removal_methods", "TEXT NOT NULL DEFAULT '[]'");
   addColumnIfMissing("plant", "geometry", "TEXT");
 }

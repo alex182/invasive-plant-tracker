@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { SpeciesPhotoGallery } from "../components/SpeciesPhotoGallery";
+import { SpeciesLookalikes } from "../components/SpeciesLookalikes";
+import { SpeciesRemovalMethods } from "../components/SpeciesRemovalMethods";
 import { useSpecies } from "../hooks/useSpecies";
 import styles from "./GuidePage.module.css";
 
@@ -61,6 +63,15 @@ export function GuidePage() {
             <h3>Key tell</h3>
             <p>{s.id_key_tell}</p>
           </div>
+          {s.lookalikes.length > 0 && (
+            <div className={styles.row}>
+              <h3>Non-invasive look-alikes</h3>
+              <SpeciesLookalikes
+                lookalikes={s.lookalikes}
+                speciesLabel={`${s.common_name} (${s.scientific_name})`}
+              />
+            </div>
+          )}
           <div className={styles.row}>
             <h3>Removal</h3>
             <p>{s.removal_summary}</p>
@@ -73,6 +84,12 @@ export function GuidePage() {
             <h3>Herbicide notes</h3>
             <p>{s.herbicide_notes}</p>
           </div>
+          {s.removal_methods.length > 0 && (
+            <div className={styles.row}>
+              <h3>Removal methods, in detail</h3>
+              <SpeciesRemovalMethods methods={s.removal_methods} />
+            </div>
+          )}
           {s.source_links.length > 0 && (
             <div className={styles.row}>
               <h3>Sources</h3>
