@@ -1,0 +1,13 @@
+{
+  "name": "invasive-plant-tracker-demo",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Playwright walkthrough script that demos the app on a mobile viewport",
+  "scripts": {
+    "demo": "node tour.js",
+    "convert": "./convert.sh"
+  },
+  "dependencies": {
+    "playwright": "1.62.1"
+  }
+}
