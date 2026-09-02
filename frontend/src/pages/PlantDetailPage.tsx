@@ -46,6 +46,19 @@ export function PlantDetailPage() {
   const [lightboxPhoto, setLightboxPhoto] = useState<LightboxPhoto | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [editing, setEditing] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [eSpeciesId, setESpeciesId] = useState("");
+  const [eLat, setELat] = useState("");
+  const [eLng, setELng] = useState("");
+  const [eAccuracy, setEAccuracy] = useState("");
+  const [eMethod, setEMethod] = useState("");
+  const [eNotes, setENotes] = useState("");
+  const [eDateIdentified, setEDateIdentified] = useState("");
+  const [eDateStarted, setEDateStarted] = useState("");
+  const [eDateRemoved, setEDateRemoved] = useState("");
+
   const [tDate, setTDate] = useState(todayISO());
   const [tMethod, setTMethod] = useState("");
   const [tHerbicide, setTHerbicide] = useState("");
@@ -87,6 +100,60 @@ export function PlantDetailPage() {
     if (!id || isPending) return;
     const updated = await api.plants.update(id, { status });
     setPlant(updated);
+  }
+
+  function startEditing() {
+    if (!plant) return;
+    setESpeciesId(plant.species_id);
+    setELat(String(plant.latitude));
+    setELng(String(plant.longitude));
+    setEAccuracy(plant.gps_accuracy_m != null ? String(plant.gps_accuracy_m) : "");
+    setEMethod(plant.method ?? "");
+    setENotes(plant.notes ?? "");
+    setEDateIdentified(plant.date_identified);
+    setEDateStarted(plant.date_started ?? "");
+    setEDateRemoved(plant.date_removed ?? "");
+    setEditError(null);
+    setEditing(true);
+  }
+
+  async function handleSaveEdit() {
+    if (!id) return;
+    const lat = Number(eLat);
+    const lng = Number(eLng);
+    if (!eSpeciesId) {
+      setEditError("Choose a species.");
+      return;
+    }
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      setEditError("Latitude and longitude must be numbers.");
+      return;
+    }
+    setSavingEdit(true);
+    setEditError(null);
+    try {
+      const updated = await api.plants.update(id, {
+        species_id: eSpeciesId,
+        latitude: lat,
+        longitude: lng,
+        gps_accuracy_m: eAccuracy ? Number(eAccuracy) : null,
+        method: eMethod || null,
+        notes: eNotes,
+        date_identified: eDateIdentified,
+        date_started: eDateStarted || null,
+        date_removed: eDateRemoved || null,
+      });
+      setPlant(updated);
+      if (!species || updated.species_id !== species.id) {
+        setSpecies(await api.species.get(updated.species_id));
+        setSpeciesPhotoFailed(false);
+      }
+      setEditing(false);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setSavingEdit(false);
+    }
   }
 
   async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -205,7 +272,14 @@ export function PlantDetailPage() {
       </div>
 
       <div className={styles.section}>
-        <h2>Details</h2>
+        <div className={styles.sectionHead}>
+          <h2>Details</h2>
+          {!isPending && !editing && (
+            <button type="button" className={styles.editLink} onClick={startEditing}>
+              ✏️ Edit
+            </button>
+          )}
+        </div>
         {plant.geometry && plant.geometry.length >= 3 && (
           <div style={{ width: "100%", height: 160, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border)", marginBottom: 10 }}>
             <MapContainer
@@ -224,29 +298,108 @@ export function PlantDetailPage() {
             </MapContainer>
           </div>
         )}
-        <dl className={styles.metaGrid}>
-          <dt>{plant.geometry ? "Center point" : "Location"}</dt>
-          <dd>
-            {plant.latitude.toFixed(5)}, {plant.longitude.toFixed(5)}
-          </dd>
-          {plant.geometry && plant.geometry.length >= 3 && (
-            <>
-              <dt>Shape</dt>
-              <dd>Patch outline ({plant.geometry.length} points)</dd>
-            </>
-          )}
-          <dt>GPS accuracy</dt>
-          <dd>{plant.gps_accuracy_m != null ? `±${Math.round(plant.gps_accuracy_m)} m` : "—"}</dd>
-          <dt>Method</dt>
-          <dd>{plant.method || "—"}</dd>
-          <dt>Identified</dt>
-          <dd>{plant.date_identified}</dd>
-          <dt>Started</dt>
-          <dd>{plant.date_started || "—"}</dd>
-          <dt>Removed</dt>
-          <dd>{plant.date_removed || "—"}</dd>
-        </dl>
-        {plant.notes && <p className={styles.notes}>{plant.notes}</p>}
+        {editing ? (
+          <div className={styles.editForm}>
+            <label>
+              Species
+              <select value={eSpeciesId} onChange={(e) => setESpeciesId(e.target.value)}>
+                {allSpecies.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.common_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className={styles.editCoords}>
+              <label>
+                Latitude
+                <input type="number" step="any" value={eLat} onChange={(e) => setELat(e.target.value)} />
+              </label>
+              <label>
+                Longitude
+                <input type="number" step="any" value={eLng} onChange={(e) => setELng(e.target.value)} />
+              </label>
+            </div>
+            {plant.geometry && (
+              <p className={styles.notes}>
+                Editing the patch outline isn't available here — use the coordinates above for the center point.
+              </p>
+            )}
+            <label>
+              GPS accuracy (m)
+              <input
+                type="number"
+                step="any"
+                value={eAccuracy}
+                onChange={(e) => setEAccuracy(e.target.value)}
+              />
+            </label>
+            <label>
+              Method
+              <input
+                type="text"
+                placeholder="e.g. cut-stump, basal bark, foliar, hand-pull"
+                value={eMethod}
+                onChange={(e) => setEMethod(e.target.value)}
+              />
+            </label>
+            <label>
+              Notes
+              <textarea value={eNotes} onChange={(e) => setENotes(e.target.value)} />
+            </label>
+            <label>
+              Date identified
+              <input
+                type="date"
+                value={eDateIdentified}
+                onChange={(e) => setEDateIdentified(e.target.value)}
+              />
+            </label>
+            <label>
+              Date started
+              <input type="date" value={eDateStarted} onChange={(e) => setEDateStarted(e.target.value)} />
+            </label>
+            <label>
+              Date removed
+              <input type="date" value={eDateRemoved} onChange={(e) => setEDateRemoved(e.target.value)} />
+            </label>
+            {editError && <div className={styles.editError}>{editError}</div>}
+            <div className={styles.actionRow}>
+              <button onClick={handleSaveEdit} disabled={savingEdit}>
+                {savingEdit ? "Saving…" : "💾 Save"}
+              </button>
+              <button onClick={() => setEditing(false)} disabled={savingEdit}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <dl className={styles.metaGrid}>
+              <dt>{plant.geometry ? "Center point" : "Location"}</dt>
+              <dd>
+                {plant.latitude.toFixed(5)}, {plant.longitude.toFixed(5)}
+              </dd>
+              {plant.geometry && plant.geometry.length >= 3 && (
+                <>
+                  <dt>Shape</dt>
+                  <dd>Patch outline ({plant.geometry.length} points)</dd>
+                </>
+              )}
+              <dt>GPS accuracy</dt>
+              <dd>{plant.gps_accuracy_m != null ? `±${Math.round(plant.gps_accuracy_m)} m` : "—"}</dd>
+              <dt>Method</dt>
+              <dd>{plant.method || "—"}</dd>
+              <dt>Identified</dt>
+              <dd>{plant.date_identified}</dd>
+              <dt>Started</dt>
+              <dd>{plant.date_started || "—"}</dd>
+              <dt>Removed</dt>
+              <dd>{plant.date_removed || "—"}</dd>
+            </dl>
+            {plant.notes && <p className={styles.notes}>{plant.notes}</p>}
+          </>
+        )}
         <p className={styles.guideLink}>
           <Link to={`/guide?species=${species.id}`}>View {species.common_name} in the guide →</Link>
         </p>
@@ -353,7 +506,6 @@ export function PlantDetailPage() {
 
       {!isPending && (
         <div className={styles.actionRow}>
-          <button onClick={() => navigate(`/plants/${plant.id}/edit`)}>✏️ Edit</button>
           <button className={styles.danger} onClick={handleDelete}>
             🗑️ Delete
           </button>
