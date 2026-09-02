@@ -408,10 +408,12 @@ export function MapPage() {
   return (
     <div className={styles.wrap}>
       {hint && <div className={styles.hint}>{hint}</div>}
-      <MapContainer center={BONNER_SPRINGS} zoom={13} style={{ width: "100%", height: "100%" }}>
+      <MapContainer center={BONNER_SPRINGS} zoom={13} maxZoom={22} style={{ width: "100%", height: "100%" }}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maxZoom={22}
+          maxNativeZoom={19}
         />
         <ClusteredMarkers
           plants={markerPlants}
