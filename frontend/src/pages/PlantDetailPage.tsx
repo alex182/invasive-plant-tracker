@@ -4,9 +4,14 @@ import { MapContainer, Polygon, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { api } from "../lib/api";
 import { isPendingId, pendingPlants, queueTreatmentCreate } from "../lib/offlineQueue";
+import { getObserver } from "../lib/observer";
+import { bearingLabel, formatDistance, haversineMeters, mapsDirectionsUrl } from "../lib/geo";
 import { useSpecies } from "../hooks/useSpecies";
+import { usePlantPhotos } from "../hooks/usePlantPhotos";
+import { useGeolocation, friendlyGeoError } from "../hooks/useGeolocation";
 import { STATUS_COLOR, STATUS_LABEL, STATUS_ORDER } from "../lib/status";
 import { ImageLightbox, type LightboxPhoto } from "../components/ImageLightbox";
+import { PlantPhotoGallery } from "../components/PlantPhotoGallery";
 import type { Plant, PlantStatus, Species, Treatment } from "../types";
 import styles from "./PlantDetailPage.module.css";
 
@@ -66,6 +71,14 @@ export function PlantDetailPage() {
   const [autoFollowup, setAutoFollowup] = useState(true);
   const [tFollowup, setTFollowup] = useState(addDaysISO(todayISO(), 120));
   const [savingTreatment, setSavingTreatment] = useState(false);
+
+  const { photos, reload: reloadPhotos } = usePlantPhotos(id, !isPending);
+  const [uploading, setUploading] = useState(0);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const { getPosition } = useGeolocation();
+  const [distance, setDistance] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [regrowthBusy, setRegrowthBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -156,11 +169,60 @@ export function PlantDetailPage() {
     }
   }
 
-  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !id || isPending) return;
-    const updated = await api.plants.uploadPhoto(id, file);
-    setPlant(updated);
+  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>, treatmentId?: string) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (files.length === 0 || !id || isPending) return;
+    setPhotoError(null);
+    setUploading(files.length);
+    try {
+      for (const file of files) {
+        await api.photos.upload(id, file, { taken_on: todayISO(), treatment_id: treatmentId ?? null });
+        setUploading((n) => n - 1);
+      }
+      await reloadPhotos();
+      const fresh = await api.plants.get(id);
+      setPlant(fresh);
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : "Couldn't upload the photo.");
+    } finally {
+      setUploading(0);
+    }
+  }
+
+  async function handleShowDistance() {
+    if (!plant) return;
+    setLocating(true);
+    setPhotoError(null);
+    try {
+      const pos = await getPosition();
+      const me: [number, number] = [pos.latitude, pos.longitude];
+      const there: [number, number] = [plant.latitude, plant.longitude];
+      setDistance(`${formatDistance(haversineMeters(me, there))} · ${bearingLabel(me, there)}`);
+    } catch (err) {
+      setDistance(
+        err && typeof err === "object" && "code" in err
+          ? friendlyGeoError(err as GeolocationPositionError)
+          : "Couldn't get your location."
+      );
+    } finally {
+      setLocating(false);
+    }
+  }
+
+  async function handleRegrowth() {
+    if (!id || isPending) return;
+    if (!confirm("Log regrowth? This reopens the plant as in-progress and adds a follow-up.")) return;
+    setRegrowthBusy(true);
+    try {
+      const { plant: updated, treatment } = await api.plants.regrowth(id, { logged_by: getObserver() || null });
+      setPlant(updated);
+      setTreatments((prev) => [treatment, ...prev]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't log regrowth.");
+    } finally {
+      setRegrowthBusy(false);
+    }
   }
 
   async function handleDelete() {
@@ -180,6 +242,7 @@ export function PlantDetailPage() {
       herbicide: tHerbicide || null,
       outcome: tOutcome || null,
       followup_due: tFollowup || null,
+      logged_by: getObserver() || null,
     };
     try {
       if (isPending) {
@@ -269,6 +332,13 @@ export function PlantDetailPage() {
             </button>
           ))}
         </div>
+        {!isPending && (plant.status === "removed" || plant.status === "monitoring") && (
+          <div className={styles.actionRow} style={{ marginTop: 10 }}>
+            <button onClick={handleRegrowth} disabled={regrowthBusy}>
+              {regrowthBusy ? "Logging…" : "🌱 Found regrowth"}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className={styles.section}>
@@ -396,8 +466,28 @@ export function PlantDetailPage() {
               <dd>{plant.date_started || "—"}</dd>
               <dt>Removed</dt>
               <dd>{plant.date_removed || "—"}</dd>
+              {plant.logged_by && (
+                <>
+                  <dt>Logged by</dt>
+                  <dd>{plant.logged_by}</dd>
+                </>
+              )}
             </dl>
             {plant.notes && <p className={styles.notes}>{plant.notes}</p>}
+            <div className={styles.actionRow} style={{ marginTop: 10 }}>
+              <a
+                className={styles.linkAction}
+                href={mapsDirectionsUrl(plant.latitude, plant.longitude)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                🧭 Navigate
+              </a>
+              <button type="button" onClick={handleShowDistance} disabled={locating}>
+                {locating ? "Locating…" : "📏 Distance from me"}
+              </button>
+              {distance && <span className={styles.distance}>{distance}</span>}
+            </div>
           </>
         )}
         <p className={styles.guideLink}>
@@ -407,26 +497,31 @@ export function PlantDetailPage() {
 
       {!isPending && (
         <div className={styles.section}>
-          <h2>Photo</h2>
-          {plant.photo_path && (
-            <button
-              type="button"
-              className={styles.photoButton}
-              onClick={() => setLightboxPhoto({ url: plant.photo_path!, alt: species.common_name })}
-            >
-              <img className={styles.photo} src={plant.photo_path} alt={species.common_name} />
-            </button>
+          <h2>Photos</h2>
+          {photos.filter((p) => !p.treatment_id).length === 0 && (
+            <p className={styles.notes}>No general photos yet.</p>
           )}
+          <PlantPhotoGallery
+            photos={photos.filter((p) => !p.treatment_id)}
+            speciesLabel={species.common_name}
+            onChanged={async () => {
+              await reloadPhotos();
+              setPlant(await api.plants.get(id!));
+            }}
+          />
+          {photoError && <div className={styles.editError}>{photoError}</div>}
           <div className={styles.actionRow} style={{ marginTop: 10 }}>
             <label>
-              📷 {plant.photo_path ? "Replace photo" : "Add photo"}
+              📷 {uploading > 0 ? `Uploading ${uploading}…` : "Add photos"}
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
                 capture="environment"
+                multiple
                 style={{ display: "none" }}
-                onChange={handlePhotoChange}
+                onChange={(e) => handlePhotoChange(e)}
+                disabled={uploading > 0}
               />
             </label>
           </div>
@@ -436,31 +531,59 @@ export function PlantDetailPage() {
       <div className={styles.section}>
         <h2>Treatments</h2>
         {treatments.length === 0 && <p className={styles.notes}>No treatments logged yet.</p>}
-        {treatments.map((t) => (
-          <div key={t.id} className={styles.treatmentItem}>
-            <div>
-              <strong>{t.date}</strong>
-              {t.method ? ` · ${t.method}` : ""}
-              {t.herbicide ? ` · ${t.herbicide}` : ""}
-            </div>
-            {t.outcome && <div>Outcome: {t.outcome}</div>}
-            {t.followup_due && (
-              <div className={isOverdue(t.followup_due, t.followup_done) ? styles.overdue : undefined}>
-                Follow-up due {t.followup_due}
-                {isOverdue(t.followup_due, t.followup_done) ? " (overdue)" : ""}
-                {" — "}
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(t.followup_done)}
-                    onChange={() => toggleFollowupDone(t)}
-                  />{" "}
-                  done
-                </label>
+        {treatments.map((t) => {
+          const tPhotos = photos.filter((p) => p.treatment_id === t.id);
+          return (
+            <div key={t.id} className={styles.treatmentItem}>
+              <div>
+                <strong>{t.date}</strong>
+                {t.method ? ` · ${t.method}` : ""}
+                {t.herbicide ? ` · ${t.herbicide}` : ""}
+                {t.logged_by ? ` · ${t.logged_by}` : ""}
               </div>
-            )}
-          </div>
-        ))}
+              {t.outcome && <div>Outcome: {t.outcome}</div>}
+              {t.followup_due && (
+                <div className={isOverdue(t.followup_due, t.followup_done) ? styles.overdue : undefined}>
+                  Follow-up due {t.followup_due}
+                  {isOverdue(t.followup_due, t.followup_done) ? " (overdue)" : ""}
+                  {" — "}
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(t.followup_done)}
+                      onChange={() => toggleFollowupDone(t)}
+                    />{" "}
+                    done
+                  </label>
+                </div>
+              )}
+              {!isPending && (
+                <>
+                  <PlantPhotoGallery
+                    photos={tPhotos}
+                    speciesLabel={species.common_name}
+                    onChanged={async () => {
+                      await reloadPhotos();
+                      setPlant(await api.plants.get(id!));
+                    }}
+                  />
+                  <label className={styles.treatmentPhotoAdd}>
+                    📷 Add photo to this treatment
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      multiple
+                      style={{ display: "none" }}
+                      onChange={(e) => handlePhotoChange(e, t.id)}
+                      disabled={uploading > 0}
+                    />
+                  </label>
+                </>
+              )}
+            </div>
+          );
+        })}
 
         <form className={styles.treatmentForm} onSubmit={handleAddTreatment}>
           <h2 style={{ marginTop: 10 }}>Log a treatment</h2>

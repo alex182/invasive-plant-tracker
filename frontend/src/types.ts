@@ -1,4 +1,4 @@
-export type PlantStatus = "planned" | "pending" | "removed";
+export type PlantStatus = "planned" | "pending" | "monitoring" | "removed";
 
 export interface SpeciesPhoto {
   url: string;
@@ -58,8 +58,22 @@ export interface Plant {
   date_removed: string | null;
   /** Patch outline as [lat, lng] vertices, or null for a single-point plant. */
   geometry: [number, number][] | null;
+  /** Name of whoever logged this plant (set once at creation), or null. */
+  logged_by: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface PlantPhoto {
+  id: string;
+  plant_id: string;
+  /** Treatment this photo documents, or null for a general plant photo. */
+  treatment_id: string | null;
+  path: string;
+  caption: string;
+  /** ISO date the photo was taken. */
+  taken_on: string;
+  created_at: string;
 }
 
 export interface NtfySettings {
@@ -89,6 +103,7 @@ export interface Treatment {
   outcome: string | null;
   followup_due: string | null;
   followup_done: boolean | number;
+  logged_by: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -9,6 +9,10 @@ backend/uploads/
 backend/*.sqlite
 backend/*.sqlite-*
 
+# local db backups / scratch
+scratch-backups/
+scratch/
+
 # frontend
 frontend/dist/
 

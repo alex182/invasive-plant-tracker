@@ -1,13 +1,12 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
-import multer from "multer";
-import path from "node:path";
-import fs from "node:fs";
 import { db } from "../db";
+import { upload, removeUploadedFile } from "../lib/uploads";
+import { insertPlantPhoto } from "./photos";
 
 export const plantsRouter = Router();
 
-const STATUSES = ["planned", "pending", "removed"] as const;
+const STATUSES = ["planned", "pending", "monitoring", "removed"] as const;
 type Status = (typeof STATUSES)[number];
 
 interface PlantRow {
@@ -24,6 +23,7 @@ interface PlantRow {
   date_started: string | null;
   date_removed: string | null;
   geometry: string | null;
+  logged_by: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -114,6 +114,7 @@ plantsRouter.post("/", (req, res) => {
     date_started = null,
     date_removed = null,
     geometry = null,
+    logged_by = null,
   } = body;
 
   if (typeof species_id !== "string" || !speciesExists(species_id)) {
@@ -142,8 +143,8 @@ plantsRouter.post("/", (req, res) => {
   const geometryJson = geometry ? JSON.stringify(geometry) : null;
 
   db.prepare(
-    `INSERT INTO plant (id, species_id, latitude, longitude, gps_accuracy_m, status, method, notes, date_identified, date_started, date_removed, geometry, created_at, updated_at)
-     VALUES (@id, @species_id, @latitude, @longitude, @gps_accuracy_m, @status, @method, @notes, @date_identified, @date_started, @date_removed, @geometry, @now, @now)`
+    `INSERT INTO plant (id, species_id, latitude, longitude, gps_accuracy_m, status, method, notes, date_identified, date_started, date_removed, geometry, logged_by, created_at, updated_at)
+     VALUES (@id, @species_id, @latitude, @longitude, @gps_accuracy_m, @status, @method, @notes, @date_identified, @date_started, @date_removed, @geometry, @logged_by, @now, @now)`
   ).run({
     id,
     species_id,
@@ -157,6 +158,7 @@ plantsRouter.post("/", (req, res) => {
     date_started,
     date_removed,
     geometry: geometryJson,
+    logged_by: typeof logged_by === "string" && logged_by ? logged_by : null,
     now,
   });
 
@@ -216,7 +218,7 @@ plantsRouter.patch("/:id", (req, res) => {
     updates.status = body.status;
 
     // T3.2: sensible date auto-fill on status transitions.
-    if (body.status === "pending" && !updates.date_started) {
+    if ((body.status === "pending" || body.status === "monitoring") && !updates.date_started) {
       updates.date_started = todayISO();
     }
     if (body.status === "removed" && !updates.date_removed) {
@@ -237,27 +239,55 @@ plantsRouter.patch("/:id", (req, res) => {
 });
 
 plantsRouter.delete("/:id", (req, res) => {
+  const photoPaths = db
+    .prepare("SELECT path FROM plant_photo WHERE plant_id = ?")
+    .all(req.params.id) as { path: string }[];
   const result = db.prepare("DELETE FROM plant WHERE id = ?").run(req.params.id);
   if (result.changes === 0) {
     res.status(404).json({ error: "plant not found" });
     return;
   }
+  // plant_photo rows cascade-delete; clean up the files they referenced.
+  for (const { path } of photoPaths) removeUploadedFile(path);
   res.status(204).send();
 });
 
-const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, "..", "..", "uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
+/**
+ * Reopen a plant when regrowth is spotted: logs a "Regrowth found" treatment with a fresh
+ * follow-up, flips status back to in-progress, and clears the removal date.
+ */
+plantsRouter.post("/:id/regrowth", (req, res) => {
+  const existing = db.prepare("SELECT * FROM plant WHERE id = ?").get(req.params.id) as PlantRow | undefined;
+  if (!existing) {
+    res.status(404).json({ error: "plant not found" });
+    return;
+  }
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || ".jpg";
-    cb(null, `${req.params.id}-${Date.now()}${ext}`);
-  },
+  const loggedBy =
+    typeof req.body?.logged_by === "string" && req.body.logged_by ? req.body.logged_by : null;
+  const today = todayISO();
+  const followup = new Date();
+  followup.setDate(followup.getDate() + 120);
+  const followupDue = followup.toISOString().slice(0, 10);
+  const now = new Date().toISOString();
+  const treatmentId = randomUUID();
+
+  db.transaction(() => {
+    db.prepare(
+      `INSERT INTO treatment (id, plant_id, date, method, herbicide, outcome, followup_due, followup_done, logged_by, created_at, updated_at)
+       VALUES (@id, @plant_id, @date, NULL, NULL, 'Regrowth found', @followup_due, 0, @logged_by, @now, @now)`
+    ).run({ id: treatmentId, plant_id: req.params.id, date: today, followup_due: followupDue, logged_by: loggedBy, now });
+
+    db.prepare("UPDATE plant SET status = 'pending', date_removed = NULL, updated_at = ? WHERE id = ?").run(
+      now,
+      req.params.id
+    );
+  })();
+
+  const plant = db.prepare("SELECT * FROM plant WHERE id = ?").get(req.params.id) as PlantRow;
+  const treatment = db.prepare("SELECT * FROM treatment WHERE id = ?").get(treatmentId);
+  res.status(201).json({ plant: serialize(plant), treatment });
 });
-const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 plantsRouter.post("/:id/photo", upload.single("photo"), (req, res) => {
   const existing = db.prepare("SELECT * FROM plant WHERE id = ?").get(req.params.id) as PlantRow | undefined;
@@ -270,12 +300,7 @@ plantsRouter.post("/:id/photo", upload.single("photo"), (req, res) => {
     return;
   }
 
-  const photoPath = `/uploads/${req.file.filename}`;
-  db.prepare("UPDATE plant SET photo_path = ?, updated_at = ? WHERE id = ?").run(
-    photoPath,
-    new Date().toISOString(),
-    req.params.id
-  );
+  insertPlantPhoto({ plantId: req.params.id, path: `/uploads/${req.file.filename}` });
 
   const row = db.prepare("SELECT * FROM plant WHERE id = ?").get(req.params.id) as PlantRow;
   res.json(serialize(row));

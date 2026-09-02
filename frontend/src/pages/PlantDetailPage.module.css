@@ -170,7 +170,8 @@
 }
 
 .actionRow button,
-.actionRow label {
+.actionRow label,
+.actionRow .linkAction {
   min-height: 40px;
   padding: 0 14px;
   border-radius: 8px;
@@ -181,6 +182,26 @@
   gap: 6px;
   font-size: 0.85rem;
   cursor: pointer;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.distance {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.treatmentPhotoAdd {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 .statusButtons {

@@ -13,6 +13,7 @@ interface TreatmentRow {
   outcome: string | null;
   followup_due: string | null;
   followup_done: number;
+  logged_by: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -44,7 +45,7 @@ treatmentsRouter.post("/plants/:plantId/treatments", (req, res) => {
   }
 
   const body = req.body ?? {};
-  const { date, method = null, herbicide = null, outcome = null, followup_due = null } = body;
+  const { date, method = null, herbicide = null, outcome = null, followup_due = null, logged_by = null } = body;
 
   if (typeof date !== "string" || !date) {
     res.status(400).json({ error: "date is required" });
@@ -55,9 +56,19 @@ treatmentsRouter.post("/plants/:plantId/treatments", (req, res) => {
   const now = new Date().toISOString();
 
   db.prepare(
-    `INSERT INTO treatment (id, plant_id, date, method, herbicide, outcome, followup_due, followup_done, created_at, updated_at)
-     VALUES (@id, @plant_id, @date, @method, @herbicide, @outcome, @followup_due, 0, @now, @now)`
-  ).run({ id, plant_id: req.params.plantId, date, method, herbicide, outcome, followup_due, now });
+    `INSERT INTO treatment (id, plant_id, date, method, herbicide, outcome, followup_due, followup_done, logged_by, created_at, updated_at)
+     VALUES (@id, @plant_id, @date, @method, @herbicide, @outcome, @followup_due, 0, @logged_by, @now, @now)`
+  ).run({
+    id,
+    plant_id: req.params.plantId,
+    date,
+    method,
+    herbicide,
+    outcome,
+    followup_due,
+    logged_by: typeof logged_by === "string" && logged_by ? logged_by : null,
+    now,
+  });
 
   const row = db.prepare("SELECT * FROM treatment WHERE id = ?").get(id);
   res.status(201).json(row);

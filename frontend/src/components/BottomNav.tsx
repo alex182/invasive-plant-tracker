@@ -5,6 +5,7 @@ const TABS = [
   { to: "/", label: "Map", icon: "\u{1F5FA}️", end: true },
   { to: "/plants", label: "Plants", icon: "\u{1F4CB}" },
   { to: "/calendar", label: "Calendar", icon: "\u{1F4C5}" },
+  { to: "/dashboard", label: "Stats", icon: "\u{1F4CA}" },
   { to: "/guide", label: "Guide", icon: "\u{1F4D6}" },
   { to: "/add", label: "Add", icon: "➕" },
 ];

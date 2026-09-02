@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { getObserver, setObserver } from "../lib/observer";
 import styles from "./SettingsPage.module.css";
 
 export function SettingsPage() {
+  const [observer, setObserverState] = useState(getObserver());
+  const [observerMessage, setObserverMessage] = useState<string | null>(null);
+
   const [server, setServer] = useState("https://ntfy.sh");
   const [topic, setTopic] = useState("");
   const [token, setToken] = useState("");
@@ -113,10 +117,47 @@ export function SettingsPage() {
     }
   }
 
+  function handleSaveObserver(e: React.FormEvent) {
+    e.preventDefault();
+    setObserver(observer);
+    setObserverState(getObserver());
+    setObserverMessage(getObserver() ? "Saved." : "Cleared.");
+  }
+
   if (loading) return <div className={styles.wrap}>Loading…</div>;
 
   return (
     <div className={styles.wrap}>
+      <div className={styles.section}>
+        <h2>Your name</h2>
+        <p className={styles.note}>
+          Stored on this device only. Attached as "logged by" to every plant and treatment you add,
+          so a crew sharing one tracker can see who recorded what.
+        </p>
+        <form className={styles.form} onSubmit={handleSaveObserver}>
+          <div className={styles.field}>
+            <label htmlFor="observerName">Name</label>
+            <input
+              id="observerName"
+              type="text"
+              value={observer}
+              onChange={(e) => {
+                setObserverState(e.target.value);
+                setObserverMessage(null);
+              }}
+              placeholder="e.g. Alex"
+              autoComplete="name"
+            />
+          </div>
+          {observerMessage && <div className={styles.note}>{observerMessage}</div>}
+          <div className={styles.buttonRow}>
+            <button type="submit" className={styles.primaryButton}>
+              Save
+            </button>
+          </div>
+        </form>
+      </div>
+
       <div className={styles.section}>
         <h2>Plant identification (Pl@ntNet)</h2>
         <p className={styles.note}>

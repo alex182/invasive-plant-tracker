@@ -6,6 +6,7 @@ import { seedIfEmpty, backfillPhotos, backfillLookalikes, backfillRemovalMethods
 import { speciesRouter } from "./routes/species";
 import { plantsRouter } from "./routes/plants";
 import { treatmentsRouter } from "./routes/treatments";
+import { photosRouter } from "./routes/photos";
 import { exportRouter } from "./routes/export";
 import { identifyRouter } from "./routes/identify";
 import { ntfyRouter } from "./routes/ntfy";
@@ -31,6 +32,7 @@ export function createApp(): Express {
   app.use("/api/species", speciesRouter);
   app.use("/api/plants", plantsRouter);
   app.use("/api", treatmentsRouter);
+  app.use("/api", photosRouter);
   app.use("/api/export", exportRouter);
   app.use("/api/identify", identifyRouter);
   app.use("/api/ntfy", ntfyRouter);

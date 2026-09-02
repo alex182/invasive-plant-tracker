@@ -11,10 +11,14 @@ A field-use PWA for tracking and coordinating invasive plant removal. Drop a pin
 - **Photo species suggestions** — snap a photo on the add-plant form to get species suggestions from Pl@ntNet, shown as tappable chips matched against your tracked species list (optional, needs an API key; suggestions only — you still confirm the species yourself)
 - **Species guide** — identification photos (including whole-plant/habit shots sourced from Bugwood/Invasive.org), removal method and timing notes, source links
 - **Treatments** — log removal/herbicide events per plant with auto-suggested follow-up dates
+- **Status lifecycle** — Planned → In progress → Monitoring → Removed; a one-tap "Found regrowth" on a removed or monitored plant reopens it, logs a "Regrowth found" treatment with a fresh follow-up, and clears the removal date
 - **Calendar** — upcoming and overdue follow-ups
-- **Photos** — attach a photo to a plant record from its detail page
-- **Offline queue** — new plants/treatments created while offline are queued in the browser and synced automatically once back online
-- **Export** — CSV and GeoJSON (patches export as closed GeoJSON polygons, points as GeoJSON points)
+- **Photo timeline** — attach multiple dated photos to a plant (before / during / after), optionally tied to a specific treatment; edit captions and dates, view full-screen; the newest photo is the plant's thumbnail
+- **Navigate & nearby** — open a plant's coordinates in the phone's maps app, see distance + bearing from your current location, or sort the Plants list by proximity for a field work queue
+- **Stats dashboard** — removal rate, status and per-species breakdowns, total mapped patch area (ha / acres), a 12-month treatment chart, and overdue follow-up counts
+- **Attribution** — set your name once (stored on the device); it's recorded as "logged by" on every plant and treatment you add, so a crew sharing one instance can see who recorded what
+- **Offline queue** — new plants/treatments created while offline are queued in the browser and synced automatically once back online (photo uploads and "Found regrowth" need a connection)
+- **Export** — CSV and GeoJSON (patches export as closed GeoJSON polygons, points as GeoJSON points; both include `logged_by` and `photo_count`)
 - **Installable PWA** — add to home screen, works offline for previously loaded data
 
 ## Tech stack

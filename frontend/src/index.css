@@ -10,6 +10,7 @@
   --danger: #e2574c;
   --status-planned: #7a8590;
   --status-pending: #e0a52c;
+  --status-monitoring: #3fa7c4;
   --status-removed: #4fb75c;
   --event-start: #5b8dee;
   --event-treatment: #b478e0;
@@ -35,6 +36,7 @@
   --danger: #c1362a;
   --status-planned: #6b7280;
   --status-pending: #b8790f;
+  --status-monitoring: #2b7d96;
   --status-removed: #2f7a2a;
   --event-start: #2d5fc4;
   --event-treatment: #8a3fc0;

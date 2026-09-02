@@ -11,6 +11,7 @@ import { usePlants } from "../hooks/usePlants";
 import { useSpecies } from "../hooks/useSpecies";
 import { useGeolocation, friendlyGeoError } from "../hooks/useGeolocation";
 import { isPendingId } from "../lib/offlineQueue";
+import { haversineMeters } from "../lib/geo";
 import { STATUS_COLOR, STATUS_LABEL, STATUS_ORDER } from "../lib/status";
 import type { Plant, PlantStatus, Species } from "../types";
 import styles from "./MapPage.module.css";
@@ -19,16 +20,6 @@ const BONNER_SPRINGS: [number, number] = [39.06, -94.88];
 
 /** Minimum movement (meters) before a new GPS reading is accepted as a walk-mode vertex, to filter out GPS jitter while standing still. */
 const MIN_WALK_STEP_M = 3;
-
-function haversineMeters(a: [number, number], b: [number, number]): number {
-  const R = 6371000;
-  const dLat = ((b[0] - a[0]) * Math.PI) / 180;
-  const dLng = ((b[1] - a[1]) * Math.PI) / 180;
-  const lat1 = (a[0] * Math.PI) / 180;
-  const lat2 = (b[0] * Math.PI) / 180;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
 
 function ClusteredMarkers({
   plants,

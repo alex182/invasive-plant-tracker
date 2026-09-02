@@ -2,21 +2,46 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { usePlants } from "../hooks/usePlants";
 import { useSpecies } from "../hooks/useSpecies";
+import { useGeolocation, friendlyGeoError } from "../hooks/useGeolocation";
+import { formatDistance, haversineMeters } from "../lib/geo";
 import { STATUS_COLOR, STATUS_LABEL, STATUS_ORDER } from "../lib/status";
 import type { PlantStatus } from "../types";
 import styles from "./PlantsListPage.module.css";
 
-type SortKey = "species" | "status" | "date_identified";
+type SortKey = "species" | "status" | "date_identified" | "distance";
 
 export function PlantsListPage() {
   const { plants, loading } = usePlants();
   const { species } = useSpecies();
+  const { getPosition } = useGeolocation();
   const [statusFilter, setStatusFilter] = useState<Set<PlantStatus>>(new Set(STATUS_ORDER));
   const [speciesFilter, setSpeciesFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("date_identified");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [myPos, setMyPos] = useState<[number, number] | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [geoNote, setGeoNote] = useState<string | null>(null);
 
   const speciesById = useMemo(() => new Map(species.map((s) => [s.id, s])), [species]);
+
+  async function sortByDistance() {
+    setLocating(true);
+    setGeoNote(null);
+    try {
+      const pos = await getPosition();
+      setMyPos([pos.latitude, pos.longitude]);
+      setSortKey("distance");
+      setSortDir("asc");
+    } catch (err) {
+      setGeoNote(
+        err && typeof err === "object" && "code" in err
+          ? friendlyGeoError(err as GeolocationPositionError)
+          : "Couldn't get your location."
+      );
+    } finally {
+      setLocating(false);
+    }
+  }
 
   function toggleStatus(status: PlantStatus) {
     setStatusFilter((prev) => {
@@ -36,6 +61,11 @@ export function PlantsListPage() {
     }
   }
 
+  const distanceOf = useMemo(() => {
+    return (p: { latitude: number; longitude: number }) =>
+      myPos ? haversineMeters(myPos, [p.latitude, p.longitude]) : null;
+  }, [myPos]);
+
   const rows = useMemo(() => {
     const filtered = plants.filter((p) => {
       if (!statusFilter.has(p.status)) return false;
@@ -50,12 +80,14 @@ export function PlantsListPage() {
         cmp = an.localeCompare(bn);
       } else if (sortKey === "status") {
         cmp = STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status);
+      } else if (sortKey === "distance" && myPos) {
+        cmp = (distanceOf(a) ?? Infinity) - (distanceOf(b) ?? Infinity);
       } else {
         cmp = a.date_identified.localeCompare(b.date_identified);
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [plants, statusFilter, speciesFilter, sortKey, sortDir, speciesById]);
+  }, [plants, statusFilter, speciesFilter, sortKey, sortDir, speciesById, myPos, distanceOf]);
 
   function sortIndicator(key: SortKey) {
     if (sortKey !== key) return null;
@@ -85,8 +117,12 @@ export function PlantsListPage() {
             </option>
           ))}
         </select>
+        <button type="button" className={styles.distanceButton} onClick={sortByDistance} disabled={locating}>
+          {locating ? "Locating…" : "📍 Sort by distance"}
+        </button>
       </div>
 
+      {geoNote && <p className={styles.note}>{geoNote}</p>}
       {loading && <p className={styles.note}>Loading…</p>}
       {!loading && rows.length === 0 && <p className={styles.note}>No plants match these filters.</p>}
 
@@ -120,6 +156,12 @@ export function PlantsListPage() {
                       {isPatch
                         ? `Patch (${p.geometry!.length} pts)`
                         : `${p.latitude.toFixed(4)}, ${p.longitude.toFixed(4)}`}
+                      {myPos && (
+                        <span className={styles.rowDistance}>
+                          {" "}
+                          · {formatDistance(distanceOf(p)!)}
+                        </span>
+                      )}
                     </td>
                     <td>{p.date_identified}</td>
                   </tr>

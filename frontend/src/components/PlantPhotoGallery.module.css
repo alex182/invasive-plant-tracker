@@ -1,0 +1,92 @@
+.gallery {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  margin: 4px 0 0;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.item {
+  flex: 0 0 72%;
+  scroll-snap-align: start;
+  margin: 0;
+}
+
+.imageButton {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.item img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  display: block;
+  background: var(--bg-elevated-2);
+}
+
+.item figcaption {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.date {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.actions button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.editRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.editRow input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.editButtons {
+  display: flex;
+  gap: 8px;
+}
+
+.editButtons button {
+  flex: 1;
+  min-height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated-2);
+  font-size: 0.78rem;
+  cursor: pointer;
+}

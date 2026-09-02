@@ -19,6 +19,8 @@ interface ExportRow {
   date_started: string | null;
   date_removed: string | null;
   geometry: string | null;
+  logged_by: string | null;
+  photo_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -28,7 +30,9 @@ function fetchRows(): ExportRow[] {
     .prepare(
       `SELECT p.id, p.species_id, s.common_name, s.scientific_name, s.category,
               p.latitude, p.longitude, p.gps_accuracy_m, p.status, p.method, p.notes,
-              p.date_identified, p.date_started, p.date_removed, p.geometry, p.created_at, p.updated_at
+              p.date_identified, p.date_started, p.date_removed, p.geometry, p.logged_by,
+              (SELECT COUNT(*) FROM plant_photo pp WHERE pp.plant_id = p.id) AS photo_count,
+              p.created_at, p.updated_at
        FROM plant p JOIN species s ON s.id = p.species_id
        ORDER BY p.created_at`
     )
@@ -55,6 +59,8 @@ exportRouter.get("/csv", (_req, res) => {
     "gps_accuracy_m",
     "method",
     "notes",
+    "logged_by",
+    "photo_count",
     "date_identified",
     "date_started",
     "date_removed",
@@ -75,6 +81,8 @@ exportRouter.get("/csv", (_req, res) => {
         r.gps_accuracy_m,
         r.method,
         r.notes,
+        r.logged_by,
+        r.photo_count,
         r.date_identified,
         r.date_started,
         r.date_removed,
@@ -120,6 +128,8 @@ exportRouter.get("/geojson", (_req, res) => {
         gps_accuracy_m: r.gps_accuracy_m,
         method: r.method,
         notes: r.notes,
+        logged_by: r.logged_by,
+        photo_count: r.photo_count,
         date_identified: r.date_identified,
         date_started: r.date_started,
         date_removed: r.date_removed,

@@ -132,6 +132,148 @@ describe("plants", () => {
   });
 });
 
+describe("monitoring status + regrowth", () => {
+  it("accepts the monitoring status on create and patch", async () => {
+    const request = (await import("supertest")).default;
+    const speciesId = (await request(app).get("/api/species")).body[0].id;
+
+    const created = await request(app)
+      .post("/api/plants")
+      .send({ species_id: speciesId, latitude: 39.06, longitude: -94.88, date_identified: "2026-08-20", status: "monitoring" });
+    expect(created.status).toBe(201);
+    expect(created.body.status).toBe("monitoring");
+    expect(created.body.date_started).toBeNull();
+
+    const patched = await request(app).patch(`/api/plants/${created.body.id}`).send({ status: "monitoring" });
+    expect(patched.status).toBe(200);
+    expect(patched.body.date_started).toBeTruthy(); // auto-filled like "pending"
+  });
+
+  it("POST /:id/regrowth logs a treatment, reopens the plant, and clears the removal date", async () => {
+    const request = (await import("supertest")).default;
+    const speciesId = (await request(app).get("/api/species")).body[0].id;
+
+    const created = await request(app)
+      .post("/api/plants")
+      .send({ species_id: speciesId, latitude: 39.06, longitude: -94.88, date_identified: "2026-08-20" });
+    await request(app).patch(`/api/plants/${created.body.id}`).send({ status: "removed" });
+
+    const res = await request(app).post(`/api/plants/${created.body.id}/regrowth`).send({ logged_by: "Alex" });
+    expect(res.status).toBe(201);
+    expect(res.body.plant.status).toBe("pending");
+    expect(res.body.plant.date_removed).toBeNull();
+    expect(res.body.treatment.outcome).toBe("Regrowth found");
+    expect(res.body.treatment.followup_due).toBeTruthy();
+    expect(res.body.treatment.logged_by).toBe("Alex");
+
+    const treatments = await request(app).get(`/api/plants/${created.body.id}/treatments`);
+    expect(treatments.body.some((t: { outcome: string }) => t.outcome === "Regrowth found")).toBe(true);
+  });
+
+  it("regrowth on a missing plant returns 404", async () => {
+    const request = (await import("supertest")).default;
+    const res = await request(app).post("/api/plants/does-not-exist/regrowth").send({});
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("attribution", () => {
+  it("round-trips logged_by on a plant and a treatment", async () => {
+    const request = (await import("supertest")).default;
+    const speciesId = (await request(app).get("/api/species")).body[0].id;
+
+    const created = await request(app)
+      .post("/api/plants")
+      .send({
+        species_id: speciesId,
+        latitude: 39.06,
+        longitude: -94.88,
+        date_identified: "2026-08-20",
+        logged_by: "Sam",
+      });
+    expect(created.body.logged_by).toBe("Sam");
+
+    const treatment = await request(app)
+      .post(`/api/plants/${created.body.id}/treatments`)
+      .send({ date: "2026-08-21", logged_by: "Sam" });
+    expect(treatment.status).toBe(201);
+    expect(treatment.body.logged_by).toBe("Sam");
+  });
+});
+
+describe("plant photos", () => {
+  it("uploads, lists, and deletes photos; primary photo tracks the newest", async () => {
+    const request = (await import("supertest")).default;
+    const speciesId = (await request(app).get("/api/species")).body[0].id;
+    const plant = await request(app)
+      .post("/api/plants")
+      .send({ species_id: speciesId, latitude: 39.06, longitude: -94.88, date_identified: "2026-08-20" });
+    const plantId = plant.body.id;
+
+    const older = await request(app)
+      .post(`/api/plants/${plantId}/photos`)
+      .field("taken_on", "2025-01-01")
+      .attach("photo", Buffer.from("img-a"), "a.jpg");
+    expect(older.status).toBe(201);
+
+    const newer = await request(app)
+      .post(`/api/plants/${plantId}/photos`)
+      .field("taken_on", "2026-06-01")
+      .field("caption", "after cut-stump")
+      .attach("photo", Buffer.from("img-b"), "b.jpg");
+    expect(newer.status).toBe(201);
+    expect(newer.body.caption).toBe("after cut-stump");
+
+    const list = await request(app).get(`/api/plants/${plantId}/photos`);
+    expect(list.body).toHaveLength(2);
+    expect(list.body[0].taken_on).toBe("2025-01-01"); // ordered ascending
+
+    const plantAfter = await request(app).get(`/api/plants/${plantId}`);
+    expect(plantAfter.body.photo_path).toBe(newer.body.path); // newest is primary
+
+    const del = await request(app).delete(`/api/photos/${newer.body.id}`);
+    expect(del.status).toBe(204);
+
+    const plantAfterDelete = await request(app).get(`/api/plants/${plantId}`);
+    expect(plantAfterDelete.body.photo_path).toBe(older.body.path); // falls back to the remaining photo
+  });
+
+  it("rejects a treatment_id that belongs to another plant", async () => {
+    const request = (await import("supertest")).default;
+    const speciesId = (await request(app).get("/api/species")).body[0].id;
+    const p1 = await request(app)
+      .post("/api/plants")
+      .send({ species_id: speciesId, latitude: 39.06, longitude: -94.88, date_identified: "2026-08-20" });
+    const p2 = await request(app)
+      .post("/api/plants")
+      .send({ species_id: speciesId, latitude: 39.07, longitude: -94.89, date_identified: "2026-08-20" });
+    const t = await request(app).post(`/api/plants/${p2.body.id}/treatments`).send({ date: "2026-08-21" });
+
+    const res = await request(app)
+      .post(`/api/plants/${p1.body.id}/photos`)
+      .field("treatment_id", t.body.id)
+      .attach("photo", Buffer.from("img"), "x.jpg");
+    expect(res.status).toBe(400);
+  });
+
+  it("the legacy singular photo route still works", async () => {
+    const request = (await import("supertest")).default;
+    const speciesId = (await request(app).get("/api/species")).body[0].id;
+    const plant = await request(app)
+      .post("/api/plants")
+      .send({ species_id: speciesId, latitude: 39.06, longitude: -94.88, date_identified: "2026-08-20" });
+
+    const res = await request(app)
+      .post(`/api/plants/${plant.body.id}/photo`)
+      .attach("photo", Buffer.from("legacy"), "legacy.jpg");
+    expect(res.status).toBe(200);
+    expect(res.body.photo_path).toBeTruthy();
+
+    const list = await request(app).get(`/api/plants/${plant.body.id}/photos`);
+    expect(list.body).toHaveLength(1);
+  });
+});
+
 describe("export", () => {
   it("exports CSV with a header row and plant data", async () => {
     const request = (await import("supertest")).default;
@@ -145,6 +287,8 @@ describe("export", () => {
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("text/csv");
     expect(res.text.split("\n")[0]).toContain("common_name");
+    expect(res.text.split("\n")[0]).toContain("photo_count");
+    expect(res.text.split("\n")[0]).toContain("logged_by");
     expect(res.text.split("\n").length).toBeGreaterThan(1);
   });
 

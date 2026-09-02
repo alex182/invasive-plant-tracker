@@ -4,6 +4,7 @@ import { BottomNav } from "./components/BottomNav";
 import { TopBar } from "./components/TopBar";
 import { MapPage } from "./pages/MapPage";
 import { CalendarPage } from "./pages/CalendarPage";
+import { DashboardPage } from "./pages/DashboardPage";
 import { GuidePage } from "./pages/GuidePage";
 import { PlantFormPage } from "./pages/PlantFormPage";
 import { PlantDetailPage } from "./pages/PlantDetailPage";
@@ -15,6 +16,7 @@ const TITLES: Record<string, string> = {
   "/": "Map",
   "/plants": "Plants",
   "/calendar": "Calendar",
+  "/dashboard": "Stats",
   "/guide": "Guide",
   "/add": "New plant",
   "/settings": "Settings",
@@ -42,6 +44,7 @@ export default function App() {
           <Route path="/" element={<MapPage />} />
           <Route path="/plants" element={<PlantsListPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/guide" element={<GuidePage />} />
           <Route path="/add" element={<PlantFormPage />} />
           <Route path="/plants/:id" element={<PlantDetailPage />} />

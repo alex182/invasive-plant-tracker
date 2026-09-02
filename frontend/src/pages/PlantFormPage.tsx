@@ -6,6 +6,7 @@ import { useGeolocation } from "../hooks/useGeolocation";
 import { useSpecies } from "../hooks/useSpecies";
 import { api } from "../lib/api";
 import { queuePlantCreate } from "../lib/offlineQueue";
+import { getObserver } from "../lib/observer";
 import { STATUS_LABEL, STATUS_ORDER } from "../lib/status";
 import type { IdentifyResult, Plant, PlantStatus, Species } from "../types";
 import styles from "./PlantFormPage.module.css";
@@ -171,19 +172,22 @@ export function PlantFormPage() {
       geometry,
     };
 
+    // Attribution is recorded once, at creation.
+    const createPayload: Partial<Plant> = { ...payload, logged_by: getObserver() || null };
+
     setSubmitting(true);
     try {
       if (isEdit && id) {
         await api.plants.update(id, payload);
         navigate(`/plants/${id}`);
       } else {
-        const created = await api.plants.create(payload);
+        const created = await api.plants.create(createPayload);
         navigate(`/plants/${created.id}`);
       }
     } catch (err) {
       if (!isEdit && (err instanceof TypeError || !navigator.onLine)) {
         // Network unreachable: queue for background sync instead of losing the entry.
-        queuePlantCreate(payload);
+        queuePlantCreate(createPayload);
         navigate("/");
         return;
       }
