@@ -8,7 +8,7 @@ import { api } from "../lib/api";
 import { formatDistance, haversineMeters } from "../lib/geo";
 import { isMyPlant } from "../lib/ownership";
 import { STATUS_COLOR, STATUS_LABEL, STATUS_ORDER } from "../lib/status";
-import type { Plant, PlantStatus, User } from "../types";
+import type { Organization, Plant, PlantStatus, User } from "../types";
 import styles from "./PlantsListPage.module.css";
 
 interface DuplicateGroup {
@@ -31,6 +31,7 @@ export function PlantsListPage() {
   const [speciesFilter, setSpeciesFilter] = useState("");
   const [mineOnly, setMineOnly] = useState(() => user?.role !== "admin");
   const [ownerFilter, setOwnerFilter] = useState("");
+  const [orgFilter, setOrgFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("date_identified");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [myPos, setMyPos] = useState<[number, number] | null>(null);
@@ -40,6 +41,7 @@ export function PlantsListPage() {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [users, setUsers] = useState<User[]>([]);
+  const [orgs, setOrgs] = useState<Organization[]>([]);
   const [reassignTo, setReassignTo] = useState("");
   const [reassigning, setReassigning] = useState(false);
   const [reassignMessage, setReassignMessage] = useState<string | null>(null);
@@ -55,6 +57,10 @@ export function PlantsListPage() {
   useEffect(() => {
     if (canBulkCopy) api.users.list().then(setUsers);
   }, [canBulkCopy]);
+
+  useEffect(() => {
+    if (isAdmin) api.organizations.list().then(setOrgs);
+  }, [isAdmin]);
 
   const speciesById = useMemo(() => new Map(species.map((s) => [s.id, s])), [species]);
 
@@ -230,6 +236,8 @@ export function PlantsListPage() {
       if (speciesFilter && p.species_id !== speciesFilter) return false;
       if (mineOnly && !isMyPlant(p, user)) return false;
       if (ownerFilter && p.owner_id !== ownerFilter) return false;
+      if (orgFilter === "__none__" ? p.owner_org_id !== null : orgFilter && p.owner_org_id !== orgFilter)
+        return false;
       return true;
     });
     return [...filtered].sort((a, b) => {
@@ -247,7 +255,7 @@ export function PlantsListPage() {
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [plants, statusFilter, speciesFilter, mineOnly, ownerFilter, user, sortKey, sortDir, speciesById, myPos, distanceOf]);
+  }, [plants, statusFilter, speciesFilter, mineOnly, ownerFilter, orgFilter, user, sortKey, sortDir, speciesById, myPos, distanceOf]);
 
   function sortIndicator(key: SortKey) {
     if (sortKey !== key) return null;
@@ -294,6 +302,22 @@ export function PlantsListPage() {
                 {u.display_name}
               </option>
             ))}
+          </select>
+        )}
+        {isAdmin && orgs.length > 0 && (
+          <select
+            className={styles.speciesSelect}
+            value={orgFilter}
+            onChange={(e) => setOrgFilter(e.target.value)}
+            aria-label="Filter by organization"
+          >
+            <option value="">All organizations</option>
+            {orgs.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+            <option value="__none__">No organization</option>
           </select>
         )}
         <button type="button" className={styles.distanceButton} onClick={sortByDistance} disabled={locating}>
