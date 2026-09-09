@@ -129,6 +129,19 @@ export function SettingsPage() {
       </div>
 
       <div className={styles.section}>
+        <h2>Organizations</h2>
+        <p className={styles.note}>
+          Group users into an organization so they share the same plants — any member can view, edit, and
+          delete the whole org's plants, and the "my plants" filter shows all of them.
+        </p>
+        <div className={styles.buttonRow}>
+          <Link to="/settings/orgs" className={styles.secondaryButton}>
+            Manage organizations
+          </Link>
+        </div>
+      </div>
+
+      <div className={styles.section}>
         <h2>Audit log</h2>
         <p className={styles.note}>See who's done what — logins, plant edits, treatments, and user management.</p>
         <div className={styles.buttonRow}>

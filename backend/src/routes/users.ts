@@ -14,10 +14,11 @@ interface UserRow {
   display_name: string;
   active: number;
   must_change_password: number;
+  org_id: string | null;
   created_at: string;
 }
 
-const PUBLIC_COLUMNS = "id, username, role, display_name, active, must_change_password, created_at";
+const PUBLIC_COLUMNS = "id, username, role, display_name, active, must_change_password, org_id, created_at";
 
 function usernameTaken(username: string, excludeId?: string): boolean {
   const row = excludeId

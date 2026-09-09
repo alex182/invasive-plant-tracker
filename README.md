@@ -17,6 +17,8 @@ A field-use PWA for tracking and coordinating invasive plant removal. Drop a pin
 - **Navigate & nearby** — open a plant's coordinates in the phone's maps app, see distance + bearing from your current location, or sort the Plants list by proximity for a field work queue
 - **Stats dashboard** — removal rate, status and per-species breakdowns, total mapped patch area (ha / acres), a 12-month treatment chart, and overdue follow-up counts
 - **Attribution** — set your name once (stored on the device); it's recorded as "logged by" on every plant and treatment you add, so a crew sharing one instance can see who recorded what
+- **Accounts & roles** — username/password login with `admin` and `user` roles; each plant is owned by whoever added it, and only its owner (or an admin) can edit or delete it
+- **Organizations** — an admin can group users into an organization from **Settings → Organizations**; org members share every plant the org owns (any member can view, edit, and delete them) and the map's "my plants" filter widens to show the whole org's plants
 - **Offline queue** — new plants/treatments created while offline are queued in the browser and synced automatically once back online (photo uploads and "Found regrowth" need a connection)
 - **Export** — CSV and GeoJSON (patches export as closed GeoJSON polygons, points as GeoJSON points; both include `logged_by` and `photo_count`)
 - **Installable PWA** — add to home screen, works offline for previously loaded data

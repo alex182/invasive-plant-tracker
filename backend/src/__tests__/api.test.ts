@@ -786,3 +786,115 @@ describe("duplicate detection", () => {
     )).toBe(true);
   });
 });
+
+describe("organizations", () => {
+  let orgAdmin: ReturnType<typeof supertest.agent>;
+  let aliceId: string;
+  let bobId: string;
+  let carolId: string;
+  let speciesId: string;
+
+  beforeAll(async () => {
+    orgAdmin = agent;
+    speciesId = (await agent.get("/api/species")).body[0].id;
+    const mk = async (username: string, display_name: string) => {
+      const r = await agent.post("/api/users").send({
+        username,
+        password: `${username}-password`,
+        role: "user",
+        display_name,
+      });
+      return r.body.id as string;
+    };
+    aliceId = await mk("org-alice", "Alice");
+    bobId = await mk("org-bob", "Bob");
+    carolId = await mk("org-carol", "Carol");
+  });
+
+  it("is admin-only", async () => {
+    const userAgent = supertest.agent(app);
+    await userAgent.post("/api/auth/login").send({ username: "org-alice", password: "org-alice-password" });
+    expect((await userAgent.get("/api/organizations")).status).toBe(403);
+    expect((await userAgent.post("/api/organizations").send({ name: "Nope" })).status).toBe(403);
+  });
+
+  it("creates an org, adds/removes members, and reflects membership on the user record", async () => {
+    const created = await orgAdmin.post("/api/organizations").send({ name: "Prairie Crew" });
+    expect(created.status).toBe(201);
+    const orgId = created.body.id;
+    expect(created.body.members).toEqual([]);
+
+    const bad = await orgAdmin.post("/api/organizations").send({ name: "  " });
+    expect(bad.status).toBe(400);
+
+    const add1 = await orgAdmin.post(`/api/organizations/${orgId}/members`).send({ user_id: aliceId });
+    expect(add1.status).toBe(201);
+    await orgAdmin.post(`/api/organizations/${orgId}/members`).send({ user_id: bobId });
+
+    const listed = (await orgAdmin.get("/api/organizations")).body.find((o: { id: string }) => o.id === orgId);
+    expect(listed.members.map((m: { id: string }) => m.id).sort()).toEqual([aliceId, bobId].sort());
+
+    const users = (await orgAdmin.get("/api/users")).body;
+    expect(users.find((u: { id: string }) => u.id === aliceId).org_id).toBe(orgId);
+
+    const dup = await orgAdmin.post(`/api/organizations/${orgId}/members`).send({ user_id: aliceId });
+    expect(dup.status).toBe(409);
+
+    const removed = await orgAdmin.delete(`/api/organizations/${orgId}/members/${bobId}`);
+    expect(removed.status).toBe(200);
+    expect(removed.body.members.map((m: { id: string }) => m.id)).toEqual([aliceId]);
+    const usersAfter = (await orgAdmin.get("/api/users")).body;
+    expect(usersAfter.find((u: { id: string }) => u.id === bobId).org_id).toBeNull();
+  });
+
+  it("lets org members edit and delete each other's plants; outsiders still can't", async () => {
+    const created = await orgAdmin.post("/api/organizations").send({ name: "Shared Crew" });
+    const orgId = created.body.id;
+    await orgAdmin.post(`/api/organizations/${orgId}/members`).send({ user_id: aliceId });
+    await orgAdmin.post(`/api/organizations/${orgId}/members`).send({ user_id: bobId });
+
+    const aliceAgent = supertest.agent(app);
+    await aliceAgent.post("/api/auth/login").send({ username: "org-alice", password: "org-alice-password" });
+    const bobAgent = supertest.agent(app);
+    await bobAgent.post("/api/auth/login").send({ username: "org-bob", password: "org-bob-password" });
+    const carolAgent = supertest.agent(app);
+    await carolAgent.post("/api/auth/login").send({ username: "org-carol", password: "org-carol-password" });
+
+    const alicePlant = await aliceAgent
+      .post("/api/plants")
+      .send({ species_id: speciesId, latitude: 39.11, longitude: -94.81, date_identified: "2026-08-20" });
+    const plantId = alicePlant.body.id;
+    expect(alicePlant.body.owner_org_id).toBe(orgId);
+
+    // Bob (same org) can edit and log treatments on Alice's plant.
+    expect((await bobAgent.patch(`/api/plants/${plantId}`).send({ notes: "shared edit" })).status).toBe(200);
+    expect((await bobAgent.post(`/api/plants/${plantId}/treatments`).send({ date: "2026-08-22" })).status).toBe(201);
+
+    // Carol (no org) cannot.
+    expect((await carolAgent.patch(`/api/plants/${plantId}`).send({ notes: "nope" })).status).toBe(403);
+    expect((await carolAgent.delete(`/api/plants/${plantId}`)).status).toBe(403);
+
+    // Bob can delete it too.
+    expect((await bobAgent.delete(`/api/plants/${plantId}`)).status).toBe(204);
+  });
+
+  it("deleting an org clears membership but leaves plants owned", async () => {
+    const created = await orgAdmin.post("/api/organizations").send({ name: "Temp Crew" });
+    const orgId = created.body.id;
+    await orgAdmin.post(`/api/organizations/${orgId}/members`).send({ user_id: carolId });
+
+    const carolAgent = supertest.agent(app);
+    await carolAgent.post("/api/auth/login").send({ username: "org-carol", password: "org-carol-password" });
+    const plant = await carolAgent
+      .post("/api/plants")
+      .send({ species_id: speciesId, latitude: 39.12, longitude: -94.82, date_identified: "2026-08-20" });
+
+    expect((await orgAdmin.delete(`/api/organizations/${orgId}`)).status).toBe(204);
+
+    const users = (await orgAdmin.get("/api/users")).body;
+    expect(users.find((u: { id: string }) => u.id === carolId).org_id).toBeNull();
+    const stillThere = await orgAdmin.get(`/api/plants/${plant.body.id}`);
+    expect(stillThere.body.owner_id).toBe(carolId);
+    expect(stillThere.body.owner_org_id).toBeNull();
+  });
+});

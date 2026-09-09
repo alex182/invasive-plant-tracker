@@ -167,6 +167,12 @@ export function migrate(): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS organization (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS session (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
@@ -206,6 +212,8 @@ export function migrate(): void {
   addColumnIfMissing("plant", "owner_id", "TEXT REFERENCES user(id)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_plant_owner ON plant(owner_id)");
   addColumnIfMissing("session", "impersonated_by", "TEXT REFERENCES user(id)");
+  addColumnIfMissing("user", "org_id", "TEXT REFERENCES organization(id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_user_org ON user(org_id)");
 
   widenPlantStatusCheck();
   backfillPlantPhotos();

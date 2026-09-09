@@ -10,6 +10,7 @@ import { usePlantPhotos } from "../hooks/usePlantPhotos";
 import { useGeolocation, friendlyGeoError } from "../hooks/useGeolocation";
 import { useAuth } from "../context/AuthContext";
 import { STATUS_COLOR, STATUS_LABEL, STATUS_ORDER } from "../lib/status";
+import { isMyPlant } from "../lib/ownership";
 import { ImageLightbox, type LightboxPhoto } from "../components/ImageLightbox";
 import { PlantPhotoGallery } from "../components/PlantPhotoGallery";
 import type { Plant, PlantStatus, Species, Treatment, User } from "../types";
@@ -284,7 +285,7 @@ export function PlantDetailPage() {
   if (error) return <div className={styles.wrap}>{error}</div>;
   if (!plant || !species) return <div className={styles.wrap}>Loading…</div>;
 
-  const canMutate = isAdmin || plant.owner_id === user?.id;
+  const canMutate = isAdmin || isMyPlant(plant, user);
 
   return (
     <div className={styles.wrap}>

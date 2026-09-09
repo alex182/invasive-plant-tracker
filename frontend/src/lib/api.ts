@@ -3,6 +3,7 @@ import type {
   IdentifyResult,
   IdentifySettings,
   NtfySettings,
+  Organization,
   Plant,
   PlantPhoto,
   Role,
@@ -137,6 +138,21 @@ export const api = {
       request<User>(`/users/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     resetPassword: (id: string, newPassword: string) =>
       request<User>(`/users/${id}/reset-password`, { method: "POST", body: JSON.stringify({ newPassword }) }),
+  },
+  organizations: {
+    list: () => request<Organization[]>("/organizations"),
+    create: (name: string) =>
+      request<Organization>("/organizations", { method: "POST", body: JSON.stringify({ name }) }),
+    rename: (id: string, name: string) =>
+      request<Organization>(`/organizations/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }),
+    remove: (id: string) => request<void>(`/organizations/${id}`, { method: "DELETE" }),
+    addMember: (id: string, userId: string) =>
+      request<Organization>(`/organizations/${id}/members`, {
+        method: "POST",
+        body: JSON.stringify({ user_id: userId }),
+      }),
+    removeMember: (id: string, userId: string) =>
+      request<Organization>(`/organizations/${id}/members/${userId}`, { method: "DELETE" }),
   },
   auditLog: {
     list: (filters?: { limit?: number; before?: string; actor_id?: string; action?: string }) => {

@@ -11,6 +11,7 @@ import { PlantDetailPage } from "./pages/PlantDetailPage";
 import { PlantsListPage } from "./pages/PlantsListPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { UsersPage } from "./pages/UsersPage";
+import { OrgsPage } from "./pages/OrgsPage";
 import { AuditLogPage } from "./pages/AuditLogPage";
 import { AccountPage } from "./pages/AccountPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -27,6 +28,7 @@ const TITLES: Record<string, string> = {
   "/add": "New plant",
   "/settings": "Settings",
   "/settings/users": "Users",
+  "/settings/orgs": "Organizations",
   "/settings/audit-log": "Audit log",
   "/account": "Account",
 };
@@ -75,6 +77,10 @@ export default function App() {
           <Route
             path="/settings/users"
             element={user.role === "admin" ? <UsersPage /> : <Navigate to="/" replace />}
+          />
+          <Route
+            path="/settings/orgs"
+            element={user.role === "admin" ? <OrgsPage /> : <Navigate to="/" replace />}
           />
           <Route
             path="/settings/audit-log"

@@ -80,6 +80,7 @@ export function pendingPlants(): Plant[] {
         geometry: i.payload.geometry ?? null,
         logged_by: null,
         owner_id: null,
+        owner_org_id: null,
         created_at: iso,
         updated_at: iso,
       };

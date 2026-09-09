@@ -62,6 +62,8 @@ export interface Plant {
   logged_by: string | null;
   /** The user who owns this plant, or null for legacy pre-account records. */
   owner_id: string | null;
+  /** The owning user's organization, or null. Org members share each other's plants. */
+  owner_org_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -105,7 +107,24 @@ export interface User {
   display_name: string;
   active: boolean | number;
   must_change_password: boolean | number;
+  /** The organization this user belongs to, or null. */
+  org_id: string | null;
   created_at: string;
+}
+
+export interface OrganizationMember {
+  id: string;
+  username: string;
+  display_name: string;
+  role: Role;
+  active: boolean | number;
+}
+
+export interface Organization {
+  id: string;
+  name: string;
+  created_at: string;
+  members: OrganizationMember[];
 }
 
 export interface Impersonator {
@@ -121,6 +140,8 @@ export interface SessionUser {
   role: Role;
   display_name: string;
   must_change_password: boolean;
+  /** The organization this user belongs to, or null. */
+  org_id: string | null;
   impersonating: boolean;
   real_admin: Impersonator | null;
 }

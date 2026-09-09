@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
 import { upload, removeUploadedFile } from "../lib/uploads";
-import type { AuthedRequest, AuthUser } from "../lib/auth";
+import { canMutatePlant, type AuthedRequest } from "../lib/auth";
 
 export const photosRouter = Router();
 
@@ -14,10 +14,6 @@ interface PhotoRow {
   caption: string;
   taken_on: string;
   created_at: string;
-}
-
-function canMutate(user: AuthUser, ownerId: string | null): boolean {
-  return user.role === "admin" || user.id === ownerId;
 }
 
 function plantOwner(plantId: string): { owner_id: string | null } | undefined {
@@ -93,9 +89,9 @@ photosRouter.post("/plants/:id/photos", upload.single("photo"), (req: AuthedRequ
     res.status(404).json({ error: "plant not found" });
     return;
   }
-  if (!canMutate(req.user!, plant.owner_id)) {
+  if (!canMutatePlant(req.user!, plant.owner_id)) {
     if (req.file) removeUploadedFile(`/uploads/${req.file.filename}`);
-    res.status(403).json({ error: "you can only add photos to plants you own" });
+    res.status(403).json({ error: "you can only add photos to plants owned by you or your organization" });
     return;
   }
   if (!req.file) {
@@ -131,8 +127,8 @@ photosRouter.patch("/photos/:photoId", (req: AuthedRequest, res) => {
     return;
   }
   const plant = plantOwner(existing.plant_id);
-  if (!plant || !canMutate(req.user!, plant.owner_id)) {
-    res.status(403).json({ error: "you can only edit photos on plants you own" });
+  if (!plant || !canMutatePlant(req.user!, plant.owner_id)) {
+    res.status(403).json({ error: "you can only edit photos on plants owned by you or your organization" });
     return;
   }
 
@@ -171,8 +167,8 @@ photosRouter.delete("/photos/:photoId", (req: AuthedRequest, res) => {
     return;
   }
   const plant = plantOwner(existing.plant_id);
-  if (!plant || !canMutate(req.user!, plant.owner_id)) {
-    res.status(403).json({ error: "you can only delete photos on plants you own" });
+  if (!plant || !canMutatePlant(req.user!, plant.owner_id)) {
+    res.status(403).json({ error: "you can only delete photos on plants owned by you or your organization" });
     return;
   }
   db.prepare("DELETE FROM plant_photo WHERE id = ?").run(req.params.photoId);

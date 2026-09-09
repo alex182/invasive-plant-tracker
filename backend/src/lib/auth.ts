@@ -11,6 +11,8 @@ export interface AuthUser {
   role: Role;
   display_name: string;
   must_change_password: boolean;
+  /** The organization this user belongs to, or null. Members of the same org share plants. */
+  org_id: string | null;
 }
 
 export interface ImpersonatorInfo {
@@ -33,6 +35,7 @@ interface UserRow {
   display_name: string;
   active: number;
   must_change_password: number;
+  org_id: string | null;
   created_at: string;
 }
 
@@ -56,7 +59,23 @@ export function toAuthUser(row: UserRow): AuthUser {
     role: row.role,
     display_name: row.display_name,
     must_change_password: Boolean(row.must_change_password),
+    org_id: row.org_id ?? null,
   };
+}
+
+/**
+ * Whether `user` may edit/delete a plant owned by `ownerId`: admins can touch anything, you can
+ * always touch your own, and members of the same organization share each other's plants.
+ */
+export function canMutatePlant(user: AuthUser, ownerId: string | null): boolean {
+  if (user.role === "admin") return true;
+  if (!ownerId) return false;
+  if (user.id === ownerId) return true;
+  if (!user.org_id) return false;
+  const owner = db.prepare("SELECT org_id FROM user WHERE id = ?").get(ownerId) as
+    | { org_id: string | null }
+    | undefined;
+  return !!owner && owner.org_id === user.org_id;
 }
 
 export function createSession(userId: string, impersonatedBy: string | null = null): string {

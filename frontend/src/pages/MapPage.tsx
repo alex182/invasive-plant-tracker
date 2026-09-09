@@ -13,6 +13,7 @@ import { useGeolocation, friendlyGeoError } from "../hooks/useGeolocation";
 import { useAuth } from "../context/AuthContext";
 import { isPendingId } from "../lib/offlineQueue";
 import { haversineMeters } from "../lib/geo";
+import { isMyPlant } from "../lib/ownership";
 import { STATUS_COLOR, STATUS_LABEL, STATUS_ORDER } from "../lib/status";
 import type { Plant, PlantStatus, Species } from "../types";
 import styles from "./MapPage.module.css";
@@ -292,7 +293,7 @@ export function MapPage() {
     return plants.filter((p) => {
       if (!statusFilter.has(p.status)) return false;
       if (speciesFilter && !speciesFilter.has(p.species_id)) return false;
-      if (mineOnly && p.owner_id !== user?.id) return false;
+      if (mineOnly && !isMyPlant(p, user)) return false;
       return true;
     });
   }, [plants, statusFilter, speciesFilter, mineOnly, user]);
@@ -489,7 +490,7 @@ export function MapPage() {
             <h3>Show</h3>
             <label className={styles.checkRow}>
               <input type="checkbox" checked={mineOnly} onChange={() => setMineOnly((v) => !v)} />
-              Only my plants
+              {user?.org_id ? "Only my organization's plants" : "Only my plants"}
             </label>
           </div>
           <div className={styles.filterGroup}>

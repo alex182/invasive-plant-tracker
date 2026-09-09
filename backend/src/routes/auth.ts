@@ -26,6 +26,7 @@ interface UserRow {
   display_name: string;
   active: number;
   must_change_password: number;
+  org_id: string | null;
   created_at: string;
 }
 

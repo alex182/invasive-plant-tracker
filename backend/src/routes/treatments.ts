@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
-import type { AuthedRequest, AuthUser } from "../lib/auth";
+import { canMutatePlant, type AuthedRequest } from "../lib/auth";
 import { recordAudit } from "../lib/audit";
 
 export const treatmentsRouter = Router();
@@ -18,10 +18,6 @@ interface TreatmentRow {
   logged_by: string | null;
   created_at: string;
   updated_at: string;
-}
-
-function canMutate(user: AuthUser, ownerId: string | null): boolean {
-  return user.role === "admin" || user.id === ownerId;
 }
 
 function plantOwner(plantId: string): { owner_id: string | null } | undefined {
@@ -56,8 +52,8 @@ treatmentsRouter.post("/plants/:plantId/treatments", (req: AuthedRequest, res) =
     res.status(404).json({ error: "plant not found" });
     return;
   }
-  if (!canMutate(req.user!, plant.owner_id)) {
-    res.status(403).json({ error: "you can only log treatments on plants you own" });
+  if (!canMutatePlant(req.user!, plant.owner_id)) {
+    res.status(403).json({ error: "you can only log treatments on plants owned by you or your organization" });
     return;
   }
 
@@ -105,8 +101,8 @@ treatmentsRouter.patch("/treatments/:id", (req: AuthedRequest, res) => {
     return;
   }
   const plant = plantOwner(existing.plant_id);
-  if (!plant || !canMutate(req.user!, plant.owner_id)) {
-    res.status(403).json({ error: "you can only edit treatments on plants you own" });
+  if (!plant || !canMutatePlant(req.user!, plant.owner_id)) {
+    res.status(403).json({ error: "you can only edit treatments on plants owned by you or your organization" });
     return;
   }
 

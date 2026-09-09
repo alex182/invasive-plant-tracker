@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { db } from "../db";
 import { upload, removeUploadedFile } from "../lib/uploads";
 import { insertPlantPhoto } from "./photos";
-import { requireAdmin, requireAdminOrImpersonating, type AuthedRequest, type AuthUser } from "../lib/auth";
+import { canMutatePlant, requireAdmin, requireAdminOrImpersonating, type AuthedRequest } from "../lib/auth";
 import { recordAudit } from "../lib/audit";
 
 export const plantsRouter = Router();
@@ -29,10 +29,6 @@ interface PlantRow {
   owner_id: string | null;
   created_at: string;
   updated_at: string;
-}
-
-function canMutate(user: AuthUser, ownerId: string | null): boolean {
-  return user.role === "admin" || user.id === ownerId;
 }
 
 function userExists(id: string): boolean {
@@ -68,7 +64,17 @@ function isValidGeometry(geometry: unknown): geometry is [number, number][] | nu
 }
 
 function serialize(row: PlantRow) {
-  return { ...row, geometry: row.geometry ? JSON.parse(row.geometry) : null };
+  const ownerOrgId = row.owner_id
+    ? ((db.prepare("SELECT org_id FROM user WHERE id = ?").get(row.owner_id) as
+        | { org_id: string | null }
+        | undefined)?.org_id ?? null)
+    : null;
+  return {
+    ...row,
+    geometry: row.geometry ? JSON.parse(row.geometry) : null,
+    // The owning user's organization, so clients can scope "my plants" to the whole org.
+    owner_org_id: ownerOrgId,
+  };
 }
 
 function speciesExists(speciesId: string): boolean {
@@ -263,8 +269,8 @@ plantsRouter.patch("/:id", (req: AuthedRequest, res) => {
     res.status(404).json({ error: "plant not found" });
     return;
   }
-  if (!canMutate(req.user!, existing.owner_id)) {
-    res.status(403).json({ error: "you can only edit plants you own" });
+  if (!canMutatePlant(req.user!, existing.owner_id)) {
+    res.status(403).json({ error: "you can only edit plants owned by you or your organization" });
     return;
   }
 
@@ -458,8 +464,8 @@ plantsRouter.delete("/:id", (req: AuthedRequest, res) => {
     res.status(404).json({ error: "plant not found" });
     return;
   }
-  if (!canMutate(req.user!, existing.owner_id)) {
-    res.status(403).json({ error: "you can only delete plants you own" });
+  if (!canMutatePlant(req.user!, existing.owner_id)) {
+    res.status(403).json({ error: "you can only delete plants owned by you or your organization" });
     return;
   }
 
@@ -483,8 +489,8 @@ plantsRouter.post("/:id/regrowth", (req: AuthedRequest, res) => {
     res.status(404).json({ error: "plant not found" });
     return;
   }
-  if (!canMutate(req.user!, existing.owner_id)) {
-    res.status(403).json({ error: "you can only log regrowth on plants you own" });
+  if (!canMutatePlant(req.user!, existing.owner_id)) {
+    res.status(403).json({ error: "you can only log regrowth on plants owned by you or your organization" });
     return;
   }
 
@@ -520,8 +526,8 @@ plantsRouter.post("/:id/photo", upload.single("photo"), (req: AuthedRequest, res
     res.status(404).json({ error: "plant not found" });
     return;
   }
-  if (!canMutate(req.user!, existing.owner_id)) {
-    res.status(403).json({ error: "you can only add photos to plants you own" });
+  if (!canMutatePlant(req.user!, existing.owner_id)) {
+    res.status(403).json({ error: "you can only add photos to plants owned by you or your organization" });
     return;
   }
   if (!req.file) {

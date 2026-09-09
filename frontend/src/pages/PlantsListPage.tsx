@@ -6,6 +6,7 @@ import { useGeolocation, friendlyGeoError } from "../hooks/useGeolocation";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
 import { formatDistance, haversineMeters } from "../lib/geo";
+import { isMyPlant } from "../lib/ownership";
 import { STATUS_COLOR, STATUS_LABEL, STATUS_ORDER } from "../lib/status";
 import type { Plant, PlantStatus, User } from "../types";
 import styles from "./PlantsListPage.module.css";
@@ -208,7 +209,7 @@ export function PlantsListPage() {
     const filtered = plants.filter((p) => {
       if (!statusFilter.has(p.status)) return false;
       if (speciesFilter && p.species_id !== speciesFilter) return false;
-      if (mineOnly && p.owner_id !== user?.id) return false;
+      if (mineOnly && !isMyPlant(p, user)) return false;
       if (ownerFilter && p.owner_id !== ownerFilter) return false;
       return true;
     });
@@ -259,7 +260,7 @@ export function PlantsListPage() {
         </select>
         <label className={styles.filterChip}>
           <input type="checkbox" checked={mineOnly} onChange={() => setMineOnly((v) => !v)} />
-          👤 My plants
+          👤 {user?.org_id ? "My org's plants" : "My plants"}
         </label>
         {isAdmin && (
           <select
