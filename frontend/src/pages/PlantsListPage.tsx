@@ -7,8 +7,14 @@ import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
 import { formatDistance, haversineMeters } from "../lib/geo";
 import { STATUS_COLOR, STATUS_LABEL, STATUS_ORDER } from "../lib/status";
-import type { PlantStatus, User } from "../types";
+import type { Plant, PlantStatus, User } from "../types";
 import styles from "./PlantsListPage.module.css";
+
+interface DuplicateGroup {
+  species_id: string;
+  species_name: string | null;
+  plants: Plant[];
+}
 
 type SortKey = "species" | "status" | "date_identified" | "distance";
 
@@ -33,6 +39,13 @@ export function PlantsListPage() {
   const [reassignTo, setReassignTo] = useState("");
   const [reassigning, setReassigning] = useState(false);
   const [reassignMessage, setReassignMessage] = useState<string | null>(null);
+
+  const [dupPanelOpen, setDupPanelOpen] = useState(false);
+  const [dupLoading, setDupLoading] = useState(false);
+  const [dupGroups, setDupGroups] = useState<DuplicateGroup[]>([]);
+  const [dupSelected, setDupSelected] = useState<Set<string>>(new Set());
+  const [dupDeleting, setDupDeleting] = useState(false);
+  const [dupMessage, setDupMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (isAdmin) api.users.list().then(setUsers);
@@ -117,6 +130,67 @@ export function PlantsListPage() {
     }
   }
 
+  async function openDuplicatesPanel() {
+    setDupPanelOpen(true);
+    setDupLoading(true);
+    setDupMessage(null);
+    try {
+      const { groups } = await api.plants.duplicates();
+      setDupGroups(groups);
+      // Default to keeping the earliest-identified plant in each group and flagging the rest.
+      const toFlag = new Set<string>();
+      for (const group of groups) {
+        const sorted = [...group.plants].sort((a, b) => a.date_identified.localeCompare(b.date_identified));
+        for (const p of sorted.slice(1)) toFlag.add(p.id);
+      }
+      setDupSelected(toFlag);
+    } catch (err) {
+      setDupMessage(err instanceof Error ? err.message : "Couldn't check for duplicates.");
+    } finally {
+      setDupLoading(false);
+    }
+  }
+
+  function closeDuplicatesPanel() {
+    setDupPanelOpen(false);
+    setDupGroups([]);
+    setDupSelected(new Set());
+    setDupMessage(null);
+  }
+
+  function toggleDupSelected(id: string) {
+    setDupSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleDeleteDuplicates() {
+    if (dupSelected.size === 0) return;
+    if (!confirm(`Delete ${dupSelected.size} plant(s)? This cannot be undone.`)) return;
+    setDupDeleting(true);
+    setDupMessage(null);
+    try {
+      for (const id of dupSelected) {
+        await api.plants.remove(id);
+      }
+      setDupMessage(`Deleted ${dupSelected.size} plant(s).`);
+      setDupGroups((prev) =>
+        prev
+          .map((g) => ({ ...g, plants: g.plants.filter((p) => !dupSelected.has(p.id)) }))
+          .filter((g) => g.plants.length >= 2)
+      );
+      setDupSelected(new Set());
+      await refetch();
+    } catch (err) {
+      setDupMessage(err instanceof Error ? err.message : "Couldn't delete those plants.");
+    } finally {
+      setDupDeleting(false);
+    }
+  }
+
   const distanceOf = useMemo(() => {
     return (p: { latitude: number; longitude: number }) =>
       myPos ? haversineMeters(myPos, [p.latitude, p.longitude]) : null;
@@ -181,6 +255,9 @@ export function PlantsListPage() {
         <button type="button" className={styles.distanceButton} onClick={sortByDistance} disabled={locating}>
           {locating ? "Locating…" : "📍 Sort by distance"}
         </button>
+        <button type="button" className={styles.distanceButton} onClick={openDuplicatesPanel}>
+          🧹 Remove duplicates
+        </button>
         {isAdmin && (
           <button type="button" className={styles.distanceButton} onClick={toggleSelectMode}>
             {selectMode ? "Cancel" : "🔀 Reassign / copy"}
@@ -217,6 +294,51 @@ export function PlantsListPage() {
             {reassigning ? "Working…" : "Copy to user"}
           </button>
           {reassignMessage && <span className={styles.note}>{reassignMessage}</span>}
+        </div>
+      )}
+
+      {dupPanelOpen && (
+        <div className={styles.dupPanel}>
+          <div className={styles.dupPanelHeader}>
+            <h2>Possible duplicates</h2>
+            <button type="button" className={styles.distanceButton} onClick={closeDuplicatesPanel}>
+              Close
+            </button>
+          </div>
+          <p className={styles.note}>
+            Plants of the same species logged within about 15 m of each other, among your own plants. The
+            earliest-identified one in each group is unchecked by default — review before deleting.
+          </p>
+          {dupLoading && <p className={styles.note}>Checking…</p>}
+          {!dupLoading && dupGroups.length === 0 && <p className={styles.note}>No likely duplicates found.</p>}
+          {dupGroups.map((group) => (
+            <div key={group.species_id + group.plants.map((p) => p.id).join()} className={styles.dupGroup}>
+              <h3>{group.species_name ?? "Unknown species"}</h3>
+              {group.plants.map((p) => (
+                <label key={p.id} className={styles.dupRow}>
+                  <input type="checkbox" checked={dupSelected.has(p.id)} onChange={() => toggleDupSelected(p.id)} />
+                  <span>
+                    {p.latitude.toFixed(5)}, {p.longitude.toFixed(5)} · identified {p.date_identified} ·{" "}
+                    {STATUS_LABEL[p.status]}
+                    {p.notes ? ` · "${p.notes}"` : ""}
+                  </span>
+                </label>
+              ))}
+            </div>
+          ))}
+          {dupGroups.length > 0 && (
+            <div className={styles.buttonRow}>
+              <button
+                type="button"
+                className={styles.distanceButton}
+                onClick={handleDeleteDuplicates}
+                disabled={dupSelected.size === 0 || dupDeleting}
+              >
+                {dupDeleting ? "Deleting…" : `Delete selected (${dupSelected.size})`}
+              </button>
+            </div>
+          )}
+          {dupMessage && <p className={styles.note}>{dupMessage}</p>}
         </div>
       )}
 

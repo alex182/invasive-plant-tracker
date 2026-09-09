@@ -87,6 +87,54 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+const EARTH_RADIUS_M = 6371000;
+/** Same species logged within this distance of each other are treated as likely duplicates. */
+const DUPLICATE_DISTANCE_M = 15;
+
+function haversineMeters(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const lat1 = toRad(aLat);
+  const lat2 = toRad(bLat);
+  const h = Math.sin(dLat / 2) ** 2 + Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** Union-find over a user's own plants: clusters same-species plants within DUPLICATE_DISTANCE_M of each other. */
+function findDuplicateGroups(plants: PlantRow[]): PlantRow[][] {
+  const parent = plants.map((_, i) => i);
+  function find(i: number): number {
+    while (parent[i] !== i) {
+      parent[i] = parent[parent[i]];
+      i = parent[i];
+    }
+    return i;
+  }
+  function union(a: number, b: number): void {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent[ra] = rb;
+  }
+
+  for (let i = 0; i < plants.length; i++) {
+    for (let j = i + 1; j < plants.length; j++) {
+      if (plants[i].species_id !== plants[j].species_id) continue;
+      if (haversineMeters(plants[i].latitude, plants[i].longitude, plants[j].latitude, plants[j].longitude) <= DUPLICATE_DISTANCE_M) {
+        union(i, j);
+      }
+    }
+  }
+
+  const clusters = new Map<number, PlantRow[]>();
+  for (let i = 0; i < plants.length; i++) {
+    const root = find(i);
+    if (!clusters.has(root)) clusters.set(root, []);
+    clusters.get(root)!.push(plants[i]);
+  }
+  return [...clusters.values()].filter((group) => group.length >= 2);
+}
+
 plantsRouter.get("/", (req, res) => {
   const { status, species_id } = req.query;
   const clauses: string[] = [];
@@ -113,6 +161,24 @@ plantsRouter.get("/", (req, res) => {
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
   const rows = db.prepare(`SELECT * FROM plant ${where} ORDER BY updated_at DESC`).all(params) as PlantRow[];
   res.json(rows.map(serialize));
+});
+
+/**
+ * Groups of the current user's own plants that are the same species and within
+ * DUPLICATE_DISTANCE_M of each other — likely accidental double-entries.
+ */
+plantsRouter.get("/duplicates", (req: AuthedRequest, res) => {
+  const rows = db
+    .prepare("SELECT * FROM plant WHERE owner_id = ? ORDER BY created_at ASC")
+    .all(req.user!.id) as PlantRow[];
+
+  const groups = findDuplicateGroups(rows).map((group) => ({
+    species_id: group[0].species_id,
+    species_name: speciesName(group[0].species_id),
+    plants: group.map(serialize),
+  }));
+
+  res.json({ groups });
 });
 
 plantsRouter.get("/:id", (req, res) => {

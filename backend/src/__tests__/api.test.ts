@@ -688,3 +688,49 @@ describe("audit log", () => {
     expect(secondIds.some((id: string) => firstIds.includes(id))).toBe(false); // no overlap
   });
 });
+
+describe("duplicate detection", () => {
+  it("groups a user's own plants by species + close GPS, ignoring species and distance mismatches", async () => {
+    await agent.post("/api/users").send({
+      username: "dup-user",
+      password: "dup-user-password",
+      role: "user",
+      display_name: "Dup User",
+    });
+    const dupAgent = supertest.agent(app);
+    await dupAgent.post("/api/auth/login").send({ username: "dup-user", password: "dup-user-password" });
+
+    const species = (await agent.get("/api/species")).body;
+    const speciesA = species[0].id;
+    const speciesB = species[1].id;
+
+    const near1 = await dupAgent
+      .post("/api/plants")
+      .send({ species_id: speciesA, latitude: 39.5, longitude: -94.5, date_identified: "2026-08-20" });
+    const near2 = await dupAgent
+      .post("/api/plants")
+      .send({ species_id: speciesA, latitude: 39.50005, longitude: -94.50005, date_identified: "2026-08-20" });
+    const far = await dupAgent
+      .post("/api/plants")
+      .send({ species_id: speciesA, latitude: 39.6, longitude: -94.6, date_identified: "2026-08-20" });
+    const differentSpecies = await dupAgent
+      .post("/api/plants")
+      .send({ species_id: speciesB, latitude: 39.5, longitude: -94.5, date_identified: "2026-08-20" });
+
+    const res = await dupAgent.get("/api/plants/duplicates");
+    expect(res.status).toBe(200);
+    expect(res.body.groups).toHaveLength(1);
+    const group = res.body.groups[0];
+    expect(group.species_id).toBe(speciesA);
+    const groupedIds = group.plants.map((p: { id: string }) => p.id).sort();
+    expect(groupedIds).toEqual([near1.body.id, near2.body.id].sort());
+    expect(groupedIds).not.toContain(far.body.id);
+    expect(groupedIds).not.toContain(differentSpecies.body.id);
+
+    // Scoped to the requester's own plants — admin sees none of dup-user's duplicates here.
+    const adminDup = await agent.get("/api/plants/duplicates");
+    expect(adminDup.body.groups.every((g: { plants: { id: string }[] }) =>
+      g.plants.every((p) => p.id !== near1.body.id && p.id !== near2.body.id)
+    )).toBe(true);
+  });
+});

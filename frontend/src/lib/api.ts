@@ -62,6 +62,10 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ plant_ids: plantIds, owner_id: ownerId }),
       }),
+    duplicates: () =>
+      request<{ groups: { species_id: string; species_name: string | null; plants: Plant[] }[] }>(
+        "/plants/duplicates"
+      ),
     bulkCopy: (plantIds: string[], ownerId: string) =>
       request<{ created_count: number; created_ids: string[] }>("/plants/bulk-copy", {
         method: "POST",
