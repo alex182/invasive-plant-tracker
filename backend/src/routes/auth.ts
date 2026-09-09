@@ -6,10 +6,13 @@ import {
   createSession,
   destroySession,
   destroySessionsForUser,
+  requireAdmin,
   requireAuth,
   SESSION_COOKIE,
   toAuthUser,
   type AuthedRequest,
+  type AuthUser,
+  type ImpersonatorInfo,
 } from "../lib/auth";
 
 export const authRouter = Router();
@@ -23,6 +26,10 @@ interface UserRow {
   active: number;
   must_change_password: number;
   created_at: string;
+}
+
+function withImpersonation(user: AuthUser, impersonation: ImpersonatorInfo | null) {
+  return { ...user, impersonating: Boolean(impersonation), real_admin: impersonation };
 }
 
 authRouter.post("/login", (req, res) => {
@@ -40,7 +47,7 @@ authRouter.post("/login", (req, res) => {
 
   const sessionId = createSession(row.id);
   res.cookie(SESSION_COOKIE, sessionId, cookieOptions());
-  res.json(toAuthUser(row));
+  res.json(withImpersonation(toAuthUser(row), null));
 });
 
 authRouter.post("/logout", requireAuth, (req: AuthedRequest, res) => {
@@ -51,7 +58,7 @@ authRouter.post("/logout", requireAuth, (req: AuthedRequest, res) => {
 });
 
 authRouter.get("/me", requireAuth, (req: AuthedRequest, res) => {
-  res.json(req.user);
+  res.json(withImpersonation(req.user!, req.impersonation ?? null));
 });
 
 authRouter.post("/change-password", requireAuth, (req: AuthedRequest, res) => {
@@ -77,5 +84,52 @@ authRouter.post("/change-password", requireAuth, (req: AuthedRequest, res) => {
   res.cookie(SESSION_COOKIE, sessionId, cookieOptions());
 
   const updated = db.prepare("SELECT * FROM user WHERE id = ?").get(row.id) as UserRow;
-  res.json(toAuthUser(updated));
+  res.json(withImpersonation(toAuthUser(updated), null));
+});
+
+/** Admin-only: switch the current session into acting as another user, for testing what they see. */
+authRouter.post("/impersonate/:userId", requireAuth, requireAdmin, (req: AuthedRequest, res) => {
+  if (req.impersonation) {
+    res.status(400).json({ error: "already impersonating — stop first" });
+    return;
+  }
+  if (req.params.userId === req.user!.id) {
+    res.status(400).json({ error: "you can't impersonate yourself" });
+    return;
+  }
+
+  const target = db.prepare("SELECT * FROM user WHERE id = ?").get(req.params.userId) as UserRow | undefined;
+  if (!target || !target.active) {
+    res.status(404).json({ error: "user not found" });
+    return;
+  }
+
+  const sessionId = createSession(target.id, req.user!.id);
+  res.cookie(SESSION_COOKIE, sessionId, cookieOptions());
+  res.json(
+    withImpersonation(toAuthUser(target), {
+      id: req.user!.id,
+      username: req.user!.username,
+      display_name: req.user!.display_name,
+    })
+  );
+});
+
+authRouter.post("/stop-impersonating", requireAuth, (req: AuthedRequest, res) => {
+  if (!req.impersonation) {
+    res.status(400).json({ error: "not currently impersonating" });
+    return;
+  }
+
+  const admin = db.prepare("SELECT * FROM user WHERE id = ?").get(req.impersonation.id) as UserRow | undefined;
+  if (!admin || !admin.active) {
+    res.status(409).json({ error: "the admin account is no longer available" });
+    return;
+  }
+
+  const token = req.cookies?.[SESSION_COOKIE];
+  if (token) destroySession(token);
+  const sessionId = createSession(admin.id);
+  res.cookie(SESSION_COOKIE, sessionId, cookieOptions());
+  res.json(withImpersonation(toAuthUser(admin), null));
 });

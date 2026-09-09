@@ -560,6 +560,57 @@ describe("roles and ownership", () => {
     expect(original.body.notes).toBe("original");
   });
 
+  it("admin can impersonate a user, act with their permissions, then stop and return to admin", async () => {
+    // Use a dedicated agent (not the shared module-level `agent`) so a failed assertion here
+    // can't leave later tests stuck on an impersonated session.
+    const adminAgent = supertest.agent(app);
+    await adminAgent.post("/api/auth/login").send({ username: TEST_ADMIN_USERNAME, password: TEST_ADMIN_PASSWORD });
+
+    const impersonate = await adminAgent.post(`/api/auth/impersonate/${userId}`);
+    expect(impersonate.status).toBe(200);
+    expect(impersonate.body.role).toBe("user");
+    expect(impersonate.body.impersonating).toBe(true);
+    expect(impersonate.body.real_admin.username).toBe(TEST_ADMIN_USERNAME);
+
+    const me = await adminAgent.get("/api/auth/me");
+    expect(me.body.id).toBe(userId);
+    expect(me.body.impersonating).toBe(true);
+
+    // Acting as the impersonated user: admin-only routes are now forbidden...
+    expect((await adminAgent.get("/api/users")).status).toBe(403);
+    // ...but the impersonated user's own plant is editable.
+    const ownPlant = await adminAgent.patch(`/api/plants/${userPlantId}`).send({ notes: "via impersonation" });
+    expect(ownPlant.status).toBe(200);
+
+    const stop = await adminAgent.post("/api/auth/stop-impersonating");
+    expect(stop.status).toBe(200);
+    expect(stop.body.username).toBe(TEST_ADMIN_USERNAME);
+    expect(stop.body.impersonating).toBe(false);
+    expect(stop.body.real_admin).toBeNull();
+
+    // Admin access is restored.
+    expect((await adminAgent.get("/api/users")).status).toBe(200);
+  });
+
+  it("a non-admin can't impersonate, and an admin can't impersonate themselves or nest impersonation", async () => {
+    const adminAgent = supertest.agent(app);
+    await adminAgent.post("/api/auth/login").send({ username: TEST_ADMIN_USERNAME, password: TEST_ADMIN_PASSWORD });
+
+    const selfTarget = await adminAgent.get("/api/auth/me").then((r) => adminAgent.post(`/api/auth/impersonate/${r.body.id}`));
+    expect(selfTarget.status).toBe(400); // can't impersonate yourself
+
+    const impersonate = await adminAgent.post(`/api/auth/impersonate/${userId}`);
+    expect(impersonate.status).toBe(200);
+
+    // Nested impersonation is blocked — since the effective role is now "user", this 403s via
+    // requireAdmin before the explicit already-impersonating check ever runs.
+    const nested = await adminAgent.post("/api/auth/impersonate/does-not-matter");
+    expect(nested.status).toBe(403);
+
+    const forbidden = await userAgent.post(`/api/auth/impersonate/${userId}`);
+    expect(forbidden.status).toBe(403); // non-admins can't impersonate at all
+  });
+
   it("admin resetting a user's password immediately invalidates their session", async () => {
     const before = await userAgent.get("/api/auth/me");
     expect(before.status).toBe(200);

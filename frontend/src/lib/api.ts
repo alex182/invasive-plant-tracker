@@ -5,6 +5,7 @@ import type {
   Plant,
   PlantPhoto,
   Role,
+  SessionUser,
   Species,
   Treatment,
   User,
@@ -110,15 +111,18 @@ export const api = {
       request<Treatment>(`/treatments/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   },
   auth: {
-    me: () => request<User>("/auth/me"),
+    me: () => request<SessionUser>("/auth/me"),
     login: (username: string, password: string) =>
-      request<User>("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
+      request<SessionUser>("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
     logout: () => request<void>("/auth/logout", { method: "POST" }),
     changePassword: (currentPassword: string, newPassword: string) =>
-      request<User>("/auth/change-password", {
+      request<SessionUser>("/auth/change-password", {
         method: "POST",
         body: JSON.stringify({ currentPassword, newPassword }),
       }),
+    impersonate: (userId: string) =>
+      request<SessionUser>(`/auth/impersonate/${userId}`, { method: "POST" }),
+    stopImpersonating: () => request<SessionUser>("/auth/stop-impersonating", { method: "POST" }),
   },
   users: {
     list: () => request<User[]>("/users"),

@@ -108,6 +108,23 @@ export interface User {
   created_at: string;
 }
 
+export interface Impersonator {
+  id: string;
+  username: string;
+  display_name: string;
+}
+
+/** The `/auth/me` and `/auth/login`-family response shape: the effective user plus impersonation state. */
+export interface SessionUser {
+  id: string;
+  username: string;
+  role: Role;
+  display_name: string;
+  must_change_password: boolean;
+  impersonating: boolean;
+  real_admin: Impersonator | null;
+}
+
 export interface Treatment {
   id: string;
   plant_id: string;

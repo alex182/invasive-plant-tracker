@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 import type { Role, User } from "../types";
 import styles from "./UsersPage.module.css";
 
@@ -8,8 +9,11 @@ function randomPassword(): string {
 }
 
 export function UsersPage() {
+  const { user: currentUser, impersonate } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [impersonating, setImpersonating] = useState<string | null>(null);
+  const [impersonateError, setImpersonateError] = useState<string | null>(null);
 
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -64,6 +68,20 @@ export function UsersPage() {
     if (!confirm(`Reset the password for "${user.username}"? Their current session will be signed out.`)) return;
     await api.users.resetPassword(user.id, newPassword);
     setRowMessage({ id: user.id, text: `New temporary password: ${newPassword}` });
+  }
+
+  async function handleImpersonate(user: User) {
+    setImpersonating(user.id);
+    setImpersonateError(null);
+    try {
+      await impersonate(user.id);
+      // The app now sees this user's role — if they're not an admin, App.tsx
+      // routes away from here automatically once the auth state updates.
+    } catch (err) {
+      setImpersonateError(err instanceof Error ? err.message : "Couldn't impersonate that user.");
+    } finally {
+      setImpersonating(null);
+    }
   }
 
   if (loading) return <div className={styles.wrap}>Loading…</div>;
@@ -131,6 +149,11 @@ export function UsersPage() {
 
       <div className={styles.section}>
         <h2>All users</h2>
+        <p className={styles.note}>
+          Impersonate a user to see the app exactly as they do. You'll act as them everywhere — including losing
+          admin access if they're not one — until you stop impersonating from the banner at the top of the app.
+        </p>
+        {impersonateError && <div className={styles.error}>{impersonateError}</div>}
         <div className={styles.list}>
           {users.map((u) => (
             <div key={u.id} className={styles.userRow}>
@@ -146,6 +169,16 @@ export function UsersPage() {
                 <option value="user">User</option>
                 <option value="admin">Admin</option>
               </select>
+              {u.id !== currentUser?.id && u.active && (
+                <button
+                  type="button"
+                  className={styles.smallButton}
+                  onClick={() => handleImpersonate(u)}
+                  disabled={impersonating === u.id}
+                >
+                  {impersonating === u.id ? "Switching…" : "Impersonate"}
+                </button>
+              )}
               <button type="button" className={styles.smallButton} onClick={() => handleResetPassword(u)}>
                 Reset password
               </button>

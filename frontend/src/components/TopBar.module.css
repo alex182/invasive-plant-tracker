@@ -40,3 +40,29 @@
   justify-content: center;
   text-decoration: none;
 }
+
+.impersonationBar {
+  position: sticky;
+  top: 0;
+  z-index: 21;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--status-pending);
+  color: var(--accent-contrast);
+  font-size: 0.85rem;
+}
+
+.stopButton {
+  background: var(--accent-contrast);
+  color: var(--status-pending);
+  border: none;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  min-height: 30px;
+}

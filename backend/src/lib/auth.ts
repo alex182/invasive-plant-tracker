@@ -13,8 +13,16 @@ export interface AuthUser {
   must_change_password: boolean;
 }
 
+export interface ImpersonatorInfo {
+  id: string;
+  username: string;
+  display_name: string;
+}
+
 export interface AuthedRequest extends Request {
   user?: AuthUser;
+  /** The real admin behind the current session, if it's an impersonation session. */
+  impersonation?: ImpersonatorInfo | null;
 }
 
 interface UserRow {
@@ -51,10 +59,15 @@ export function toAuthUser(row: UserRow): AuthUser {
   };
 }
 
-export function createSession(userId: string): string {
+export function createSession(userId: string, impersonatedBy: string | null = null): string {
   const id = randomUUID();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
-  db.prepare("INSERT INTO session (id, user_id, expires_at) VALUES (?, ?, ?)").run(id, userId, expiresAt);
+  db.prepare("INSERT INTO session (id, user_id, expires_at, impersonated_by) VALUES (?, ?, ?, ?)").run(
+    id,
+    userId,
+    expiresAt,
+    impersonatedBy
+  );
   return id;
 }
 
@@ -82,11 +95,11 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
 
   const row = db
     .prepare(
-      `SELECT u.*, s.created_at AS session_created_at
+      `SELECT u.*, s.created_at AS session_created_at, s.impersonated_by AS session_impersonated_by
        FROM session s JOIN user u ON u.id = s.user_id
        WHERE s.id = ? AND s.expires_at > datetime('now') AND u.active = 1`
     )
-    .get(token) as (UserRow & { session_created_at: string }) | undefined;
+    .get(token) as (UserRow & { session_created_at: string; session_impersonated_by: string | null }) | undefined;
 
   if (!row) {
     res.status(401).json({ error: "authentication required" });
@@ -95,6 +108,11 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
 
   renewSessionIfStale(token, row.session_created_at);
   req.user = toAuthUser(row);
+  req.impersonation = row.session_impersonated_by
+    ? (db
+        .prepare("SELECT id, username, display_name FROM user WHERE id = ?")
+        .get(row.session_impersonated_by) as ImpersonatorInfo | undefined) ?? null
+    : null;
   next();
 }
 

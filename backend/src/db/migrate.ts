@@ -189,6 +189,7 @@ export function migrate(): void {
   addColumnIfMissing("treatment", "logged_by", "TEXT");
   addColumnIfMissing("plant", "owner_id", "TEXT REFERENCES user(id)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_plant_owner ON plant(owner_id)");
+  addColumnIfMissing("session", "impersonated_by", "TEXT REFERENCES user(id)");
 
   widenPlantStatusCheck();
   backfillPlantPhotos();

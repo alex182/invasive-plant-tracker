@@ -1,19 +1,21 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
-import type { User } from "../types";
+import type { SessionUser } from "../types";
 
 interface AuthContextValue {
-  user: User | null;
+  user: SessionUser | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+  impersonate: (userId: string) => Promise<void>;
+  stopImpersonating: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -40,8 +42,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function impersonate(userId: string) {
+    setUser(await api.auth.impersonate(userId));
+  }
+
+  async function stopImpersonating() {
+    setUser(await api.auth.stopImpersonating());
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refresh }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, loading, login, logout, refresh, impersonate, stopImpersonating }}>
+      {children}
+    </AuthContext.Provider>
   );
 }
 

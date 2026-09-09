@@ -46,7 +46,9 @@ export default function App() {
 
   if (!user) return <LoginPage />;
 
-  if (user.must_change_password) return <ChangePasswordPage />;
+  // Skip the forced-change screen while impersonating — that's the impersonated user's own
+  // business, not something to make the admin deal with mid-impersonation.
+  if (user.must_change_password && !user.impersonating) return <ChangePasswordPage />;
 
   return (
     <>
