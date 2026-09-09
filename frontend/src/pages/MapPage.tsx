@@ -265,7 +265,7 @@ export function MapPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<Set<PlantStatus>>(new Set(STATUS_ORDER));
   const [speciesFilter, setSpeciesFilter] = useState<Set<string> | null>(null);
-  const [mineOnly, setMineOnly] = useState(() => user?.role !== "admin");
+  const [mineOnly, setMineOnly] = useState(true);
   const [hint, setHint] = useState<string | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
