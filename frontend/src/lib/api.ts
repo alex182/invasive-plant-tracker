@@ -60,6 +60,11 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ plant_ids: plantIds, owner_id: ownerId }),
       }),
+    bulkCopy: (plantIds: string[], ownerId: string) =>
+      request<{ created_count: number; created_ids: string[] }>("/plants/bulk-copy", {
+        method: "POST",
+        body: JSON.stringify({ plant_ids: plantIds, owner_id: ownerId }),
+      }),
   },
   photos: {
     list: (plantId: string) => request<PlantPhoto[]>(`/plants/${plantId}/photos`),

@@ -38,6 +38,12 @@ function userExists(id: string): boolean {
   return !!db.prepare("SELECT 1 FROM user WHERE id = ?").get(id);
 }
 
+function getUser(id: string): { id: string; display_name: string } | undefined {
+  return db.prepare("SELECT id, display_name FROM user WHERE id = ?").get(id) as
+    | { id: string; display_name: string }
+    | undefined;
+}
+
 function isValidLatLng(lat: unknown, lng: unknown): boolean {
   return (
     typeof lat === "number" &&
@@ -284,6 +290,58 @@ plantsRouter.post("/bulk-reassign", requireAdmin, (req: AuthedRequest, res) => {
   })();
 
   res.json({ updated_count: updated.length, updated_ids: updated });
+});
+
+/**
+ * Duplicate plants onto another user's account: each source plant is left untouched and a new,
+ * independent plant row (own id, no treatments/photos) is created for the target owner. Admin only.
+ */
+plantsRouter.post("/bulk-copy", requireAdmin, (req: AuthedRequest, res) => {
+  const { plant_ids, owner_id } = req.body ?? {};
+
+  if (!Array.isArray(plant_ids) || plant_ids.length === 0 || !plant_ids.every((id) => typeof id === "string")) {
+    res.status(400).json({ error: "plant_ids must be a non-empty array of strings" });
+    return;
+  }
+  const owner = typeof owner_id === "string" ? getUser(owner_id) : undefined;
+  if (!owner) {
+    res.status(400).json({ error: "owner_id must reference an existing user" });
+    return;
+  }
+
+  const insert = db.prepare(
+    `INSERT INTO plant (id, species_id, latitude, longitude, gps_accuracy_m, status, method, notes, date_identified, date_started, date_removed, geometry, logged_by, owner_id, created_at, updated_at)
+     VALUES (@id, @species_id, @latitude, @longitude, @gps_accuracy_m, @status, @method, @notes, @date_identified, @date_started, @date_removed, @geometry, @logged_by, @owner_id, @now, @now)`
+  );
+  const created: string[] = [];
+  db.transaction(() => {
+    for (const sourceId of plant_ids as string[]) {
+      const source = db.prepare("SELECT * FROM plant WHERE id = ?").get(sourceId) as PlantRow | undefined;
+      if (!source) continue;
+      const id = randomUUID();
+      const now = new Date().toISOString();
+      insert.run({
+        id,
+        species_id: source.species_id,
+        latitude: source.latitude,
+        longitude: source.longitude,
+        gps_accuracy_m: source.gps_accuracy_m,
+        status: source.status,
+        method: source.method,
+        notes: source.notes,
+        date_identified: source.date_identified,
+        date_started: source.date_started,
+        date_removed: source.date_removed,
+        geometry: source.geometry,
+        logged_by: owner.display_name,
+        owner_id: owner.id,
+        now,
+      });
+      created.push(id);
+    }
+  })();
+
+  res.status(201).json({ created_count: created.length, created_ids: created });
 });
 
 plantsRouter.delete("/:id", (req: AuthedRequest, res) => {

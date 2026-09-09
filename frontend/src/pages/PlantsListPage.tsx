@@ -95,17 +95,22 @@ export function PlantsListPage() {
     setSelected((prev) => (prev.size === ids.length ? new Set() : new Set(ids)));
   }
 
-  async function handleBulkReassign() {
+  async function handleBulkReassign(mode: "move" | "copy") {
     if (selected.size === 0 || !reassignTo) return;
     setReassigning(true);
     setReassignMessage(null);
     try {
-      const { updated_count } = await api.plants.bulkReassign([...selected], reassignTo);
-      setReassignMessage(`Reassigned ${updated_count} plant${updated_count === 1 ? "" : "s"}.`);
+      if (mode === "move") {
+        const { updated_count } = await api.plants.bulkReassign([...selected], reassignTo);
+        setReassignMessage(`Reassigned ${updated_count} plant${updated_count === 1 ? "" : "s"}.`);
+      } else {
+        const { created_count } = await api.plants.bulkCopy([...selected], reassignTo);
+        setReassignMessage(`Copied ${created_count} plant${created_count === 1 ? "" : "s"}.`);
+      }
       setSelected(new Set());
       await refetch();
     } catch (err) {
-      setReassignMessage(err instanceof Error ? err.message : "Couldn't reassign those plants.");
+      setReassignMessage(err instanceof Error ? err.message : "Couldn't complete that action.");
     } finally {
       setReassigning(false);
     }
@@ -172,7 +177,7 @@ export function PlantsListPage() {
         </button>
         {isAdmin && (
           <button type="button" className={styles.distanceButton} onClick={toggleSelectMode}>
-            {selectMode ? "Cancel reassign" : "🔀 Reassign owner"}
+            {selectMode ? "Cancel" : "🔀 Reassign / copy"}
           </button>
         )}
       </div>
@@ -181,7 +186,7 @@ export function PlantsListPage() {
         <div className={styles.bulkBar}>
           <span>{selected.size} selected</span>
           <select value={reassignTo} onChange={(e) => setReassignTo(e.target.value)}>
-            <option value="">Reassign to…</option>
+            <option value="">Choose a user…</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.display_name}
@@ -191,10 +196,19 @@ export function PlantsListPage() {
           <button
             type="button"
             className={styles.distanceButton}
-            onClick={handleBulkReassign}
+            onClick={() => handleBulkReassign("move")}
             disabled={selected.size === 0 || !reassignTo || reassigning}
           >
-            {reassigning ? "Reassigning…" : "Reassign"}
+            {reassigning ? "Working…" : "Reassign"}
+          </button>
+          <button
+            type="button"
+            className={styles.distanceButton}
+            onClick={() => handleBulkReassign("copy")}
+            disabled={selected.size === 0 || !reassignTo || reassigning}
+            title="Duplicate the selected plants onto this user's account, leaving the originals untouched"
+          >
+            {reassigning ? "Working…" : "Copy to user"}
           </button>
           {reassignMessage && <span className={styles.note}>{reassignMessage}</span>}
         </div>

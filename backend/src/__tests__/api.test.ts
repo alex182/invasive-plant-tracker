@@ -531,6 +531,35 @@ describe("roles and ownership", () => {
     expect(moved.body.owner_id).toBe(userId);
   });
 
+  it("bulk-copy duplicates plants onto another user's account, leaving the originals untouched", async () => {
+    const source = await agent
+      .post("/api/plants")
+      .send({ species_id: speciesId, latitude: 39.4, longitude: -94.5, date_identified: "2026-08-20", notes: "original" });
+    const sourceId = source.body.id;
+
+    const forbidden = await userAgent.post("/api/plants/bulk-copy").send({ plant_ids: [sourceId], owner_id: userId });
+    expect(forbidden.status).toBe(403);
+
+    const badBody = await agent.post("/api/plants/bulk-copy").send({ plant_ids: [], owner_id: userId });
+    expect(badBody.status).toBe(400);
+
+    const copyRes = await agent.post("/api/plants/bulk-copy").send({ plant_ids: [sourceId], owner_id: userId });
+    expect(copyRes.status).toBe(201);
+    expect(copyRes.body.created_count).toBe(1);
+    const copyId = copyRes.body.created_ids[0];
+    expect(copyId).not.toBe(sourceId);
+
+    const copy = await agent.get(`/api/plants/${copyId}`);
+    expect(copy.body.owner_id).toBe(userId);
+    expect(copy.body.logged_by).toBe(userDisplayName);
+    expect(copy.body.notes).toBe("original");
+    expect(copy.body.species_id).toBe(speciesId);
+
+    const original = await agent.get(`/api/plants/${sourceId}`);
+    expect(original.body.owner_id).not.toBe(userId); // still the admin's, untouched by the copy
+    expect(original.body.notes).toBe("original");
+  });
+
   it("admin resetting a user's password immediately invalidates their session", async () => {
     const before = await userAgent.get("/api/auth/me");
     expect(before.status).toBe(200);
