@@ -20,7 +20,7 @@ export function PlantsListPage() {
   const isAdmin = user?.role === "admin";
   const [statusFilter, setStatusFilter] = useState<Set<PlantStatus>>(new Set(STATUS_ORDER));
   const [speciesFilter, setSpeciesFilter] = useState("");
-  const [mineOnly, setMineOnly] = useState(false);
+  const [mineOnly, setMineOnly] = useState(() => user?.role !== "admin");
   const [sortKey, setSortKey] = useState<SortKey>("date_identified");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [myPos, setMyPos] = useState<[number, number] | null>(null);
