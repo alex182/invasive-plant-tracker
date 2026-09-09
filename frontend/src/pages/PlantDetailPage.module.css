@@ -224,6 +224,10 @@
   border-color: var(--accent);
 }
 
+.statusButtons button:disabled {
+  opacity: 0.5;
+}
+
 .photoButton {
   display: block;
   width: 100%;

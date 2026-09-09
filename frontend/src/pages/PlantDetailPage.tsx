@@ -284,6 +284,8 @@ export function PlantDetailPage() {
   if (error) return <div className={styles.wrap}>{error}</div>;
   if (!plant || !species) return <div className={styles.wrap}>Loading…</div>;
 
+  const canMutate = isAdmin || plant.owner_id === user?.id;
+
   return (
     <div className={styles.wrap}>
       <div className={styles.headerRow}>
@@ -335,13 +337,13 @@ export function PlantDetailPage() {
               key={s}
               className={s === plant.status ? styles.active : undefined}
               onClick={() => handleStatusChange(s)}
-              disabled={isPending}
+              disabled={isPending || !canMutate}
             >
               {STATUS_LABEL[s]}
             </button>
           ))}
         </div>
-        {!isPending && (plant.status === "removed" || plant.status === "monitoring") && (
+        {!isPending && canMutate && (plant.status === "removed" || plant.status === "monitoring") && (
           <div className={styles.actionRow} style={{ marginTop: 10 }}>
             <button onClick={handleRegrowth} disabled={regrowthBusy}>
               {regrowthBusy ? "Logging…" : "🌱 Found regrowth"}
@@ -353,7 +355,7 @@ export function PlantDetailPage() {
       <div className={styles.section}>
         <div className={styles.sectionHead}>
           <h2>Details</h2>
-          {!isPending && !editing && (
+          {!isPending && !editing && canMutate && (
             <button type="button" className={styles.editLink} onClick={startEditing}>
               ✏️ Edit
             </button>
@@ -531,21 +533,23 @@ export function PlantDetailPage() {
             }}
           />
           {photoError && <div className={styles.editError}>{photoError}</div>}
-          <div className={styles.actionRow} style={{ marginTop: 10 }}>
-            <label>
-              📷 {uploading > 0 ? `Uploading ${uploading}…` : "Add photos"}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                multiple
-                style={{ display: "none" }}
-                onChange={(e) => handlePhotoChange(e)}
-                disabled={uploading > 0}
-              />
-            </label>
-          </div>
+          {canMutate && (
+            <div className={styles.actionRow} style={{ marginTop: 10 }}>
+              <label>
+                📷 {uploading > 0 ? `Uploading ${uploading}…` : "Add photos"}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  multiple
+                  style={{ display: "none" }}
+                  onChange={(e) => handlePhotoChange(e)}
+                  disabled={uploading > 0}
+                />
+              </label>
+            </div>
+          )}
         </div>
       )}
 
@@ -573,6 +577,7 @@ export function PlantDetailPage() {
                       type="checkbox"
                       checked={Boolean(t.followup_done)}
                       onChange={() => toggleFollowupDone(t)}
+                      disabled={!canMutate}
                     />{" "}
                     done
                   </label>
@@ -588,67 +593,71 @@ export function PlantDetailPage() {
                       setPlant(await api.plants.get(id!));
                     }}
                   />
-                  <label className={styles.treatmentPhotoAdd}>
-                    📷 Add photo to this treatment
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      multiple
-                      style={{ display: "none" }}
-                      onChange={(e) => handlePhotoChange(e, t.id)}
-                      disabled={uploading > 0}
-                    />
-                  </label>
+                  {canMutate && (
+                    <label className={styles.treatmentPhotoAdd}>
+                      📷 Add photo to this treatment
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        multiple
+                        style={{ display: "none" }}
+                        onChange={(e) => handlePhotoChange(e, t.id)}
+                        disabled={uploading > 0}
+                      />
+                    </label>
+                  )}
                 </>
               )}
             </div>
           );
         })}
 
-        <form className={styles.treatmentForm} onSubmit={handleAddTreatment}>
-          <h2 style={{ marginTop: 10 }}>Log a treatment</h2>
-          <input type="date" value={tDate} onChange={(e) => setTDate(e.target.value)} required />
-          <input
-            type="text"
-            placeholder="Method (e.g. cut-stump, basal bark)"
-            value={tMethod}
-            onChange={(e) => setTMethod(e.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="Herbicide (optional)"
-            value={tHerbicide}
-            onChange={(e) => setTHerbicide(e.target.value)}
-          />
-          <textarea
-            placeholder="Outcome notes (optional)"
-            value={tOutcome}
-            onChange={(e) => setTOutcome(e.target.value)}
-          />
-          <label>
+        {canMutate && (
+          <form className={styles.treatmentForm} onSubmit={handleAddTreatment}>
+            <h2 style={{ marginTop: 10 }}>Log a treatment</h2>
+            <input type="date" value={tDate} onChange={(e) => setTDate(e.target.value)} required />
             <input
-              type="checkbox"
-              checked={autoFollowup}
-              onChange={(e) => setAutoFollowup(e.target.checked)}
-            />{" "}
-            Auto follow-up (+1 season)
-          </label>
-          <input
-            type="date"
-            value={tFollowup}
-            onChange={(e) => {
-              setAutoFollowup(false);
-              setTFollowup(e.target.value);
-            }}
-          />
-          <button type="submit" disabled={savingTreatment}>
-            {savingTreatment ? "Saving…" : "Log treatment"}
-          </button>
-        </form>
+              type="text"
+              placeholder="Method (e.g. cut-stump, basal bark)"
+              value={tMethod}
+              onChange={(e) => setTMethod(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Herbicide (optional)"
+              value={tHerbicide}
+              onChange={(e) => setTHerbicide(e.target.value)}
+            />
+            <textarea
+              placeholder="Outcome notes (optional)"
+              value={tOutcome}
+              onChange={(e) => setTOutcome(e.target.value)}
+            />
+            <label>
+              <input
+                type="checkbox"
+                checked={autoFollowup}
+                onChange={(e) => setAutoFollowup(e.target.checked)}
+              />{" "}
+              Auto follow-up (+1 season)
+            </label>
+            <input
+              type="date"
+              value={tFollowup}
+              onChange={(e) => {
+                setAutoFollowup(false);
+                setTFollowup(e.target.value);
+              }}
+            />
+            <button type="submit" disabled={savingTreatment}>
+              {savingTreatment ? "Saving…" : "Log treatment"}
+            </button>
+          </form>
+        )}
       </div>
 
-      {!isPending && (
+      {!isPending && canMutate && (
         <div className={styles.actionRow}>
           <button className={styles.danger} onClick={handleDelete}>
             🗑️ Delete
