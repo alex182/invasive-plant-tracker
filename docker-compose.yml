@@ -1,6 +1,7 @@
 services:
   backend:
     build: ./backend
+    restart: unless-stopped
     ports:
       - "3001:3001"
     environment:
@@ -22,6 +23,7 @@ services:
 
   frontend:
     build: ./frontend
+    restart: unless-stopped
     ports:
       - "3000:3000"
     depends_on:
@@ -30,6 +32,7 @@ services:
 
   caddy:
     image: caddy:2-alpine
+    restart: unless-stopped
     ports:
       - "443:443"
     volumes:
