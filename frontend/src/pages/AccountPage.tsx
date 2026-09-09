@@ -1,18 +1,20 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import styles from "./LoginPage.module.css";
+import styles from "./SettingsPage.module.css";
 
-export function ChangePasswordPage() {
-  const { changePassword } = useAuth();
+export function AccountPage() {
+  const { user, changePassword } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setMessage(null);
     if (newPassword !== confirmPassword) {
       setError("New passwords don't match.");
       return;
@@ -20,6 +22,10 @@ export function ChangePasswordPage() {
     setSubmitting(true);
     try {
       await changePassword(currentPassword, newPassword);
+      setMessage("Password changed.");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't change your password.");
     } finally {
@@ -27,21 +33,28 @@ export function ChangePasswordPage() {
     }
   }
 
+  if (!user) return null;
+
   return (
     <div className={styles.wrap}>
-      <div className={styles.card}>
-        <h1 className={styles.title}>Set a new password</h1>
-        <p className={styles.subtitle}>You're using a temporary password. Choose a new one to continue.</p>
+      <div className={styles.section}>
+        <h2>Account</h2>
+        <p className={styles.note}>
+          Signed in as <strong>{user.display_name}</strong> (@{user.username}) · {user.role}
+        </p>
+      </div>
+
+      <div className={styles.section}>
+        <h2>Change password</h2>
         <form className={styles.form} onSubmit={handleSubmit}>
           <div className={styles.field}>
-            <label htmlFor="currentPassword">Temporary password</label>
+            <label htmlFor="currentPassword">Current password</label>
             <input
               id="currentPassword"
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               autoComplete="current-password"
-              autoFocus
               required
             />
           </div>
@@ -70,9 +83,12 @@ export function ChangePasswordPage() {
             />
           </div>
           {error && <div className={styles.error}>{error}</div>}
-          <button className={styles.submit} type="submit" disabled={submitting}>
-            {submitting ? "Saving…" : "Set password"}
-          </button>
+          {message && <div className={styles.success}>{message}</div>}
+          <div className={styles.buttonRow}>
+            <button type="submit" className={styles.primaryButton} disabled={submitting}>
+              {submitting ? "Saving…" : "Change password"}
+            </button>
+          </div>
         </form>
       </div>
     </div>

@@ -26,6 +26,9 @@ export function TopBar({ title }: { title: string }) {
               ⚙️
             </Link>
           )}
+          <Link to="/account" className={styles.toggle} aria-label="Your account">
+            👤
+          </Link>
           <button
             className={styles.toggle}
             onClick={toggleTheme}

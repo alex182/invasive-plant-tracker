@@ -10,6 +10,7 @@ import "../leaflet-overrides.css";
 import { usePlants } from "../hooks/usePlants";
 import { useSpecies } from "../hooks/useSpecies";
 import { useGeolocation, friendlyGeoError } from "../hooks/useGeolocation";
+import { useAuth } from "../context/AuthContext";
 import { isPendingId } from "../lib/offlineQueue";
 import { haversineMeters } from "../lib/geo";
 import { STATUS_COLOR, STATUS_LABEL, STATUS_ORDER } from "../lib/status";
@@ -258,11 +259,13 @@ export function MapPage() {
   const { plants } = usePlants();
   const { species } = useSpecies();
   const { getPosition, loading: locating } = useGeolocation();
+  const { user } = useAuth();
   const [myPos, setMyPos] = useState<[number, number] | null>(null);
   const [myAccuracy, setMyAccuracy] = useState<number | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<Set<PlantStatus>>(new Set(STATUS_ORDER));
   const [speciesFilter, setSpeciesFilter] = useState<Set<string> | null>(null);
+  const [mineOnly, setMineOnly] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
@@ -289,9 +292,10 @@ export function MapPage() {
     return plants.filter((p) => {
       if (!statusFilter.has(p.status)) return false;
       if (speciesFilter && !speciesFilter.has(p.species_id)) return false;
+      if (mineOnly && p.owner_id !== user?.id) return false;
       return true;
     });
-  }, [plants, statusFilter, speciesFilter]);
+  }, [plants, statusFilter, speciesFilter, mineOnly, user]);
 
   const markerPlants = useMemo(
     () => filteredPlants.filter((p) => !p.geometry || p.geometry.length < 3),
@@ -480,6 +484,13 @@ export function MapPage() {
             <button type="button" className={styles.filterCloseButton} onClick={() => setFiltersOpen(false)}>
               Close
             </button>
+          </div>
+          <div className={styles.filterGroup}>
+            <h3>Show</h3>
+            <label className={styles.checkRow}>
+              <input type="checkbox" checked={mineOnly} onChange={() => setMineOnly((v) => !v)} />
+              Only my plants
+            </label>
           </div>
           <div className={styles.filterGroup}>
             <h3>Status</h3>

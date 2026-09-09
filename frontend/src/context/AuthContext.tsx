@@ -10,6 +10,7 @@ interface AuthContextValue {
   refresh: () => Promise<void>;
   impersonate: (userId: string) => Promise<void>;
   stopImpersonating: () => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -50,8 +51,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(await api.auth.stopImpersonating());
   }
 
+  async function changePassword(currentPassword: string, newPassword: string) {
+    setUser(await api.auth.changePassword(currentPassword, newPassword));
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refresh, impersonate, stopImpersonating }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, logout, refresh, impersonate, stopImpersonating, changePassword }}
+    >
       {children}
     </AuthContext.Provider>
   );

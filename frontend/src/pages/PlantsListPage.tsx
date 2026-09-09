@@ -20,6 +20,7 @@ export function PlantsListPage() {
   const isAdmin = user?.role === "admin";
   const [statusFilter, setStatusFilter] = useState<Set<PlantStatus>>(new Set(STATUS_ORDER));
   const [speciesFilter, setSpeciesFilter] = useState("");
+  const [mineOnly, setMineOnly] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("date_identified");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [myPos, setMyPos] = useState<[number, number] | null>(null);
@@ -125,6 +126,7 @@ export function PlantsListPage() {
     const filtered = plants.filter((p) => {
       if (!statusFilter.has(p.status)) return false;
       if (speciesFilter && p.species_id !== speciesFilter) return false;
+      if (mineOnly && p.owner_id !== user?.id) return false;
       return true;
     });
     return [...filtered].sort((a, b) => {
@@ -142,7 +144,7 @@ export function PlantsListPage() {
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [plants, statusFilter, speciesFilter, sortKey, sortDir, speciesById, myPos, distanceOf]);
+  }, [plants, statusFilter, speciesFilter, mineOnly, user, sortKey, sortDir, speciesById, myPos, distanceOf]);
 
   function sortIndicator(key: SortKey) {
     if (sortKey !== key) return null;
@@ -172,6 +174,10 @@ export function PlantsListPage() {
             </option>
           ))}
         </select>
+        <label className={styles.filterChip}>
+          <input type="checkbox" checked={mineOnly} onChange={() => setMineOnly((v) => !v)} />
+          👤 My plants
+        </label>
         <button type="button" className={styles.distanceButton} onClick={sortByDistance} disabled={locating}>
           {locating ? "Locating…" : "📍 Sort by distance"}
         </button>
