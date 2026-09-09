@@ -29,6 +29,7 @@ export function PlantsListPage() {
   const [statusFilter, setStatusFilter] = useState<Set<PlantStatus>>(new Set(STATUS_ORDER));
   const [speciesFilter, setSpeciesFilter] = useState("");
   const [mineOnly, setMineOnly] = useState(() => user?.role !== "admin");
+  const [ownerFilter, setOwnerFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("date_identified");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [myPos, setMyPos] = useState<[number, number] | null>(null);
@@ -208,6 +209,7 @@ export function PlantsListPage() {
       if (!statusFilter.has(p.status)) return false;
       if (speciesFilter && p.species_id !== speciesFilter) return false;
       if (mineOnly && p.owner_id !== user?.id) return false;
+      if (ownerFilter && p.owner_id !== ownerFilter) return false;
       return true;
     });
     return [...filtered].sort((a, b) => {
@@ -225,7 +227,7 @@ export function PlantsListPage() {
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [plants, statusFilter, speciesFilter, mineOnly, user, sortKey, sortDir, speciesById, myPos, distanceOf]);
+  }, [plants, statusFilter, speciesFilter, mineOnly, ownerFilter, user, sortKey, sortDir, speciesById, myPos, distanceOf]);
 
   function sortIndicator(key: SortKey) {
     if (sortKey !== key) return null;
@@ -259,6 +261,21 @@ export function PlantsListPage() {
           <input type="checkbox" checked={mineOnly} onChange={() => setMineOnly((v) => !v)} />
           👤 My plants
         </label>
+        {isAdmin && (
+          <select
+            className={styles.speciesSelect}
+            value={ownerFilter}
+            onChange={(e) => setOwnerFilter(e.target.value)}
+            aria-label="Filter by owner"
+          >
+            <option value="">All owners</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.display_name}
+              </option>
+            ))}
+          </select>
+        )}
         <button type="button" className={styles.distanceButton} onClick={sortByDistance} disabled={locating}>
           {locating ? "Locating…" : "📍 Sort by distance"}
         </button>
