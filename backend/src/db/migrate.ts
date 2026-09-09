@@ -206,6 +206,7 @@ export function migrate(): void {
   addColumnIfMissing("species", "photos", "TEXT NOT NULL DEFAULT '[]'");
   addColumnIfMissing("species", "lookalikes", "TEXT NOT NULL DEFAULT '[]'");
   addColumnIfMissing("species", "removal_methods", "TEXT NOT NULL DEFAULT '[]'");
+  addColumnIfMissing("plant_photo", "phase", "TEXT");
   addColumnIfMissing("plant", "geometry", "TEXT");
   addColumnIfMissing("plant", "logged_by", "TEXT");
   addColumnIfMissing("treatment", "logged_by", "TEXT");

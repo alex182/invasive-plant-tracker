@@ -243,6 +243,38 @@ describe("plant photos", () => {
     expect(plantAfterDelete.body.photo_path).toBe(older.body.path); // falls back to the remaining photo
   });
 
+  it("stores a before/during/after stage on progress photos and rejects a bad one", async () => {
+    const speciesId = (await agent.get("/api/species")).body[0].id;
+    const plant = await agent
+      .post("/api/plants")
+      .send({ species_id: speciesId, latitude: 39.06, longitude: -94.88, date_identified: "2026-08-20" });
+    const plantId = plant.body.id;
+
+    const before = await agent
+      .post(`/api/plants/${plantId}/photos`)
+      .field("phase", "before")
+      .attach("photo", Buffer.from("img-before"), "before.jpg");
+    expect(before.status).toBe(201);
+    expect(before.body.phase).toBe("before");
+
+    const unlabelled = await agent
+      .post(`/api/plants/${plantId}/photos`)
+      .attach("photo", Buffer.from("img-plain"), "plain.jpg");
+    expect(unlabelled.body.phase).toBeNull();
+
+    const bad = await agent
+      .post(`/api/plants/${plantId}/photos`)
+      .field("phase", "midway")
+      .attach("photo", Buffer.from("img-bad"), "bad.jpg");
+    expect(bad.status).toBe(400);
+
+    const moved = await agent.patch(`/api/photos/${unlabelled.body.id}`).send({ phase: "after" });
+    expect(moved.body.phase).toBe("after");
+    const cleared = await agent.patch(`/api/photos/${unlabelled.body.id}`).send({ phase: "" });
+    expect(cleared.body.phase).toBeNull();
+    expect((await agent.patch(`/api/photos/${unlabelled.body.id}`).send({ phase: "nope" })).status).toBe(400);
+  });
+
   it("rejects a treatment_id that belongs to another plant", async () => {
     const speciesId = (await agent.get("/api/species")).body[0].id;
     const p1 = await agent

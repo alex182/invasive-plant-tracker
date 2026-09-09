@@ -171,6 +171,7 @@
 
 .actionRow button,
 .actionRow label,
+.actionRow select,
 .actionRow .linkAction {
   min-height: 40px;
   padding: 0 14px;

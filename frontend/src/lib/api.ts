@@ -4,6 +4,7 @@ import type {
   IdentifySettings,
   NtfySettings,
   Organization,
+  PhotoPhase,
   Plant,
   PlantPhoto,
   Role,
@@ -83,17 +84,20 @@ export const api = {
     upload: async (
       plantId: string,
       file: File,
-      opts?: { caption?: string; taken_on?: string; treatment_id?: string | null }
+      opts?: { caption?: string; taken_on?: string; treatment_id?: string | null; phase?: PhotoPhase | null }
     ) => {
       const form = new FormData();
       form.append("photo", await downscaleImage(file));
       if (opts?.caption) form.append("caption", opts.caption);
       if (opts?.taken_on) form.append("taken_on", opts.taken_on);
       if (opts?.treatment_id) form.append("treatment_id", opts.treatment_id);
+      if (opts?.phase) form.append("phase", opts.phase);
       return request<PlantPhoto>(`/plants/${plantId}/photos`, { method: "POST", body: form });
     },
-    update: (id: string, data: { caption?: string; taken_on?: string; treatment_id?: string | null }) =>
-      request<PlantPhoto>(`/photos/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    update: (
+      id: string,
+      data: { caption?: string; taken_on?: string; treatment_id?: string | null; phase?: PhotoPhase | null }
+    ) => request<PlantPhoto>(`/photos/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     remove: (id: string) => request<void>(`/photos/${id}`, { method: "DELETE" }),
   },
   identify: {

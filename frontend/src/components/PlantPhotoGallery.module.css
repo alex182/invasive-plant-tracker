@@ -67,12 +67,37 @@
   margin-top: 6px;
 }
 
-.editRow input {
+.editRow input,
+.editRow select {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 6px 8px;
   font-size: 0.8rem;
+  color: var(--text);
+}
+
+.group + .group {
+  margin-top: 14px;
+}
+
+.groupHeading {
+  margin: 10px 0 2px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.phaseBadge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-elevated-2);
+  border: 1px solid var(--border);
+  font-weight: 600;
   color: var(--text);
 }
 

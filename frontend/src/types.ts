@@ -68,6 +68,9 @@ export interface Plant {
   updated_at: string;
 }
 
+/** Progress-photo stage in a plant's removal timeline. */
+export type PhotoPhase = "before" | "during" | "after";
+
 export interface PlantPhoto {
   id: string;
   plant_id: string;
@@ -77,6 +80,8 @@ export interface PlantPhoto {
   caption: string;
   /** ISO date the photo was taken. */
   taken_on: string;
+  /** before / during / after removal work, or null for an unlabelled photo. */
+  phase: PhotoPhase | null;
   created_at: string;
 }
 

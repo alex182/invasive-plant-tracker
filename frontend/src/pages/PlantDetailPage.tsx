@@ -13,7 +13,7 @@ import { STATUS_COLOR, STATUS_LABEL, STATUS_ORDER } from "../lib/status";
 import { isMyPlant } from "../lib/ownership";
 import { ImageLightbox, type LightboxPhoto } from "../components/ImageLightbox";
 import { PlantPhotoGallery } from "../components/PlantPhotoGallery";
-import type { Plant, PlantStatus, Species, Treatment, User } from "../types";
+import type { PhotoPhase, Plant, PlantStatus, Species, Treatment, User } from "../types";
 import styles from "./PlantDetailPage.module.css";
 
 function addDaysISO(dateISO: string, days: number): string {
@@ -80,6 +80,7 @@ export function PlantDetailPage() {
   const { photos, reload: reloadPhotos } = usePlantPhotos(id, !isPending);
   const [uploading, setUploading] = useState(0);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [newPhotoPhase, setNewPhotoPhase] = useState<PhotoPhase>("during");
   const { getPosition } = useGeolocation();
   const [distance, setDistance] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
@@ -188,7 +189,12 @@ export function PlantDetailPage() {
     setUploading(files.length);
     try {
       for (const file of files) {
-        await api.photos.upload(id, file, { taken_on: todayISO(), treatment_id: treatmentId ?? null });
+        await api.photos.upload(id, file, {
+          taken_on: todayISO(),
+          treatment_id: treatmentId ?? null,
+          // Stage only applies to the plant's general progress timeline, not treatment-specific shots.
+          phase: treatmentId ? null : newPhotoPhase,
+        });
         setUploading((n) => n - 1);
       }
       await reloadPhotos();
@@ -522,10 +528,12 @@ export function PlantDetailPage() {
       {!isPending && (
         <div className={styles.section}>
           <h2>Photos</h2>
+          <p className={styles.notes}>Progress pics, grouped by stage — before, during, and after removal.</p>
           {photos.filter((p) => !p.treatment_id).length === 0 && (
-            <p className={styles.notes}>No general photos yet.</p>
+            <p className={styles.notes}>No progress photos yet.</p>
           )}
           <PlantPhotoGallery
+            grouped
             photos={photos.filter((p) => !p.treatment_id)}
             speciesLabel={species.common_name}
             onChanged={async () => {
@@ -536,6 +544,16 @@ export function PlantDetailPage() {
           {photoError && <div className={styles.editError}>{photoError}</div>}
           {canMutate && (
             <div className={styles.actionRow} style={{ marginTop: 10 }}>
+              <select
+                value={newPhotoPhase}
+                onChange={(e) => setNewPhotoPhase(e.target.value as PhotoPhase)}
+                disabled={uploading > 0}
+                aria-label="Stage for new photos"
+              >
+                <option value="before">Before</option>
+                <option value="during">During</option>
+                <option value="after">After</option>
+              </select>
               <label>
                 📷 {uploading > 0 ? `Uploading ${uploading}…` : "Add photos"}
                 <input

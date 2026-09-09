@@ -13,7 +13,7 @@ A field-use PWA for tracking and coordinating invasive plant removal. Drop a pin
 - **Treatments** — log removal/herbicide events per plant with auto-suggested follow-up dates
 - **Status lifecycle** — Planned → In progress → Monitoring → Removed; a one-tap "Found regrowth" on a removed or monitored plant reopens it, logs a "Regrowth found" treatment with a fresh follow-up, and clears the removal date
 - **Calendar** — upcoming and overdue follow-ups
-- **Photo timeline** — attach multiple dated photos to a plant (before / during / after), optionally tied to a specific treatment; edit captions and dates, view full-screen; the newest photo is the plant's thumbnail
+- **Photo timeline** — attach multiple dated photos to a plant, each tagged with a removal stage (before / during / after) so the gallery groups into a progress timeline; photos can also be tied to a specific treatment; edit captions, dates, and stage, view full-screen; the newest photo is the plant's thumbnail
 - **Navigate & nearby** — open a plant's coordinates in the phone's maps app, see distance + bearing from your current location, or sort the Plants list by proximity for a field work queue
 - **Stats dashboard** — removal rate, status and per-species breakdowns, total mapped patch area (ha / acres), a 12-month treatment chart, and overdue follow-up counts
 - **Attribution** — set your name once (stored on the device); it's recorded as "logged by" on every plant and treatment you add, so a crew sharing one instance can see who recorded what

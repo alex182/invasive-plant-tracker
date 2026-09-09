@@ -13,7 +13,18 @@ interface PhotoRow {
   path: string;
   caption: string;
   taken_on: string;
+  phase: string | null;
   created_at: string;
+}
+
+/** Progress-photo stage: before / during / after removal work, or null for an unlabelled photo. */
+const PHASES = ["before", "during", "after"] as const;
+
+/** "" and null both mean "no stage"; anything else must be one of PHASES. Returns undefined if invalid. */
+function normalizePhase(value: unknown): string | null | undefined {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value === "string" && (PHASES as readonly string[]).includes(value)) return value;
+  return undefined;
 }
 
 function plantOwner(plantId: string): { owner_id: string | null } | undefined {
@@ -53,11 +64,12 @@ export function insertPlantPhoto(args: {
   caption?: string;
   takenOn?: string;
   treatmentId?: string | null;
+  phase?: string | null;
 }): PhotoRow {
   const id = randomUUID();
   db.prepare(
-    `INSERT INTO plant_photo (id, plant_id, treatment_id, path, caption, taken_on, created_at)
-     VALUES (@id, @plant_id, @treatment_id, @path, @caption, @taken_on, @created_at)`
+    `INSERT INTO plant_photo (id, plant_id, treatment_id, path, caption, taken_on, phase, created_at)
+     VALUES (@id, @plant_id, @treatment_id, @path, @caption, @taken_on, @phase, @created_at)`
   ).run({
     id,
     plant_id: args.plantId,
@@ -65,6 +77,7 @@ export function insertPlantPhoto(args: {
     path: args.path,
     caption: args.caption ?? "",
     taken_on: args.takenOn || todayISO(),
+    phase: args.phase ?? null,
     created_at: new Date().toISOString(),
   });
   refreshPrimaryPhoto(args.plantId);
@@ -99,12 +112,19 @@ photosRouter.post("/plants/:id/photos", upload.single("photo"), (req: AuthedRequ
     return;
   }
 
-  const { caption, taken_on, treatment_id } = req.body ?? {};
+  const { caption, taken_on, treatment_id, phase } = req.body ?? {};
   const treatmentId = treatment_id != null && treatment_id !== "" ? String(treatment_id) : null;
 
   if (treatmentId && !treatmentBelongsToPlant(treatmentId, req.params.id)) {
     removeUploadedFile(`/uploads/${req.file.filename}`);
     res.status(400).json({ error: "treatment_id must reference a treatment on this plant" });
+    return;
+  }
+
+  const normalizedPhase = normalizePhase(phase);
+  if (normalizedPhase === undefined) {
+    removeUploadedFile(`/uploads/${req.file.filename}`);
+    res.status(400).json({ error: `phase must be one of ${PHASES.join(", ")}` });
     return;
   }
 
@@ -114,6 +134,7 @@ photosRouter.post("/plants/:id/photos", upload.single("photo"), (req: AuthedRequ
     caption: typeof caption === "string" ? caption : "",
     takenOn: typeof taken_on === "string" && taken_on ? taken_on : undefined,
     treatmentId,
+    phase: normalizedPhase,
   });
   res.status(201).json(photo);
 });
@@ -137,9 +158,18 @@ photosRouter.patch("/photos/:photoId", (req: AuthedRequest, res) => {
     caption: existing.caption,
     taken_on: existing.taken_on,
     treatment_id: existing.treatment_id as string | null,
+    phase: existing.phase as string | null,
   };
   if (body.caption !== undefined) updates.caption = String(body.caption);
   if (body.taken_on !== undefined) updates.taken_on = String(body.taken_on);
+  if (body.phase !== undefined) {
+    const normalizedPhase = normalizePhase(body.phase);
+    if (normalizedPhase === undefined) {
+      res.status(400).json({ error: `phase must be one of ${PHASES.join(", ")}` });
+      return;
+    }
+    updates.phase = normalizedPhase;
+  }
   if (body.treatment_id !== undefined) {
     if (body.treatment_id === null || body.treatment_id === "") {
       updates.treatment_id = null;
@@ -152,7 +182,7 @@ photosRouter.patch("/photos/:photoId", (req: AuthedRequest, res) => {
   }
 
   db.prepare(
-    "UPDATE plant_photo SET caption = @caption, taken_on = @taken_on, treatment_id = @treatment_id WHERE id = @id"
+    "UPDATE plant_photo SET caption = @caption, taken_on = @taken_on, treatment_id = @treatment_id, phase = @phase WHERE id = @id"
   ).run({ ...updates, id: req.params.photoId });
   refreshPrimaryPhoto(existing.plant_id);
   res.json(db.prepare("SELECT * FROM plant_photo WHERE id = ?").get(req.params.photoId));
