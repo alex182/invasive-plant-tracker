@@ -1,19 +1,23 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { usePlants } from "../hooks/usePlants";
 import { useSpecies } from "../hooks/useSpecies";
 import { useGeolocation, friendlyGeoError } from "../hooks/useGeolocation";
+import { useAuth } from "../context/AuthContext";
+import { api } from "../lib/api";
 import { formatDistance, haversineMeters } from "../lib/geo";
 import { STATUS_COLOR, STATUS_LABEL, STATUS_ORDER } from "../lib/status";
-import type { PlantStatus } from "../types";
+import type { PlantStatus, User } from "../types";
 import styles from "./PlantsListPage.module.css";
 
 type SortKey = "species" | "status" | "date_identified" | "distance";
 
 export function PlantsListPage() {
-  const { plants, loading } = usePlants();
+  const { plants, loading, refetch } = usePlants();
   const { species } = useSpecies();
   const { getPosition } = useGeolocation();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [statusFilter, setStatusFilter] = useState<Set<PlantStatus>>(new Set(STATUS_ORDER));
   const [speciesFilter, setSpeciesFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("date_identified");
@@ -21,6 +25,17 @@ export function PlantsListPage() {
   const [myPos, setMyPos] = useState<[number, number] | null>(null);
   const [locating, setLocating] = useState(false);
   const [geoNote, setGeoNote] = useState<string | null>(null);
+
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [users, setUsers] = useState<User[]>([]);
+  const [reassignTo, setReassignTo] = useState("");
+  const [reassigning, setReassigning] = useState(false);
+  const [reassignMessage, setReassignMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isAdmin) api.users.list().then(setUsers);
+  }, [isAdmin]);
 
   const speciesById = useMemo(() => new Map(species.map((s) => [s.id, s])), [species]);
 
@@ -58,6 +73,41 @@ export function PlantsListPage() {
     } else {
       setSortKey(key);
       setSortDir("asc");
+    }
+  }
+
+  function toggleSelectMode() {
+    setSelectMode((v) => !v);
+    setSelected(new Set());
+    setReassignMessage(null);
+  }
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll(ids: string[]) {
+    setSelected((prev) => (prev.size === ids.length ? new Set() : new Set(ids)));
+  }
+
+  async function handleBulkReassign() {
+    if (selected.size === 0 || !reassignTo) return;
+    setReassigning(true);
+    setReassignMessage(null);
+    try {
+      const { updated_count } = await api.plants.bulkReassign([...selected], reassignTo);
+      setReassignMessage(`Reassigned ${updated_count} plant${updated_count === 1 ? "" : "s"}.`);
+      setSelected(new Set());
+      await refetch();
+    } catch (err) {
+      setReassignMessage(err instanceof Error ? err.message : "Couldn't reassign those plants.");
+    } finally {
+      setReassigning(false);
     }
   }
 
@@ -120,7 +170,35 @@ export function PlantsListPage() {
         <button type="button" className={styles.distanceButton} onClick={sortByDistance} disabled={locating}>
           {locating ? "Locating…" : "📍 Sort by distance"}
         </button>
+        {isAdmin && (
+          <button type="button" className={styles.distanceButton} onClick={toggleSelectMode}>
+            {selectMode ? "Cancel reassign" : "🔀 Reassign owner"}
+          </button>
+        )}
       </div>
+
+      {selectMode && (
+        <div className={styles.bulkBar}>
+          <span>{selected.size} selected</span>
+          <select value={reassignTo} onChange={(e) => setReassignTo(e.target.value)}>
+            <option value="">Reassign to…</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.display_name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className={styles.distanceButton}
+            onClick={handleBulkReassign}
+            disabled={selected.size === 0 || !reassignTo || reassigning}
+          >
+            {reassigning ? "Reassigning…" : "Reassign"}
+          </button>
+          {reassignMessage && <span className={styles.note}>{reassignMessage}</span>}
+        </div>
+      )}
 
       {geoNote && <p className={styles.note}>{geoNote}</p>}
       {loading && <p className={styles.note}>Loading…</p>}
@@ -131,6 +209,16 @@ export function PlantsListPage() {
           <table className={styles.table}>
             <thead>
               <tr>
+                {selectMode && (
+                  <th>
+                    <input
+                      type="checkbox"
+                      checked={rows.length > 0 && selected.size === rows.length}
+                      onChange={() => toggleSelectAll(rows.map((p) => p.id))}
+                      aria-label="Select all"
+                    />
+                  </th>
+                )}
                 <th onClick={() => toggleSort("species")}>Species {sortIndicator("species")}</th>
                 <th onClick={() => toggleSort("status")}>Status {sortIndicator("status")}</th>
                 <th>Location</th>
@@ -143,6 +231,16 @@ export function PlantsListPage() {
                 const isPatch = Boolean(p.geometry && p.geometry.length >= 3);
                 return (
                   <tr key={p.id}>
+                    {selectMode && (
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(p.id)}
+                          onChange={() => toggleSelected(p.id)}
+                          aria-label={`Select ${sp?.common_name ?? "plant"}`}
+                        />
+                      </td>
+                    )}
                     <td>
                       <Link to={`/plants/${p.id}`}>{sp?.common_name ?? "Unknown species"}</Link>
                     </td>

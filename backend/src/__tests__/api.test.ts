@@ -503,6 +503,34 @@ describe("roles and ownership", () => {
     expect(ownTreatment.status).toBe(201);
   });
 
+  it("bulk-reassign is admin-only and moves ownership of multiple plants at once", async () => {
+    const forbidden = await userAgent
+      .post("/api/plants/bulk-reassign")
+      .send({ plant_ids: [adminPlantId], owner_id: userId });
+    expect(forbidden.status).toBe(403);
+
+    const badBody = await agent.post("/api/plants/bulk-reassign").send({ plant_ids: [], owner_id: userId });
+    expect(badBody.status).toBe(400);
+
+    const badOwner = await agent
+      .post("/api/plants/bulk-reassign")
+      .send({ plant_ids: [adminPlantId], owner_id: "no-such-user" });
+    expect(badOwner.status).toBe(400);
+
+    const secondAdminPlant = await agent
+      .post("/api/plants")
+      .send({ species_id: speciesId, latitude: 39.3, longitude: -94.6, date_identified: "2026-08-20" });
+
+    const reassign = await agent
+      .post("/api/plants/bulk-reassign")
+      .send({ plant_ids: [adminPlantId, secondAdminPlant.body.id], owner_id: userId });
+    expect(reassign.status).toBe(200);
+    expect(reassign.body.updated_count).toBe(2);
+
+    const moved = await agent.get(`/api/plants/${adminPlantId}`);
+    expect(moved.body.owner_id).toBe(userId);
+  });
+
   it("admin resetting a user's password immediately invalidates their session", async () => {
     const before = await userAgent.get("/api/auth/me");
     expect(before.status).toBe(200);

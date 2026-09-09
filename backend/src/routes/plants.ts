@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { db } from "../db";
 import { upload, removeUploadedFile } from "../lib/uploads";
 import { insertPlantPhoto } from "./photos";
-import type { AuthedRequest, AuthUser } from "../lib/auth";
+import { requireAdmin, type AuthedRequest, type AuthUser } from "../lib/auth";
 
 export const plantsRouter = Router();
 
@@ -258,6 +258,32 @@ plantsRouter.patch("/:id", (req: AuthedRequest, res) => {
 
   const row = db.prepare("SELECT * FROM plant WHERE id = ?").get(req.params.id) as PlantRow;
   res.json(serialize(row));
+});
+
+/** Reassign many plants to a single owner at once. Admin only. */
+plantsRouter.post("/bulk-reassign", requireAdmin, (req: AuthedRequest, res) => {
+  const { plant_ids, owner_id } = req.body ?? {};
+
+  if (!Array.isArray(plant_ids) || plant_ids.length === 0 || !plant_ids.every((id) => typeof id === "string")) {
+    res.status(400).json({ error: "plant_ids must be a non-empty array of strings" });
+    return;
+  }
+  if (typeof owner_id !== "string" || !userExists(owner_id)) {
+    res.status(400).json({ error: "owner_id must reference an existing user" });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const update = db.prepare("UPDATE plant SET owner_id = @owner_id, updated_at = @now WHERE id = @id");
+  const updated: string[] = [];
+  db.transaction(() => {
+    for (const id of plant_ids as string[]) {
+      const result = update.run({ owner_id, now, id });
+      if (result.changes > 0) updated.push(id);
+    }
+  })();
+
+  res.json({ updated_count: updated.length, updated_ids: updated });
 });
 
 plantsRouter.delete("/:id", (req: AuthedRequest, res) => {

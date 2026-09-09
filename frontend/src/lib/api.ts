@@ -55,6 +55,11 @@ export const api = {
         method: "POST",
         body: JSON.stringify({}),
       }),
+    bulkReassign: (plantIds: string[], ownerId: string) =>
+      request<{ updated_count: number; updated_ids: string[] }>("/plants/bulk-reassign", {
+        method: "POST",
+        body: JSON.stringify({ plant_ids: plantIds, owner_id: ownerId }),
+      }),
   },
   photos: {
     list: (plantId: string) => request<PlantPhoto[]>(`/plants/${plantId}/photos`),
