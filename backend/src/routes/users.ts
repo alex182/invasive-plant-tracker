@@ -2,7 +2,8 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
 import { hashPassword } from "../lib/password";
-import { destroySessionsForUser, type Role } from "../lib/auth";
+import { destroySessionsForUser, type AuthedRequest, type Role } from "../lib/auth";
+import { recordAudit } from "../lib/audit";
 
 export const usersRouter = Router();
 
@@ -30,7 +31,7 @@ usersRouter.get("/", (_req, res) => {
   res.json(rows);
 });
 
-usersRouter.post("/", (req, res) => {
+usersRouter.post("/", (req: AuthedRequest, res) => {
   const body = req.body ?? {};
   const { username, password, role, display_name } = body;
 
@@ -62,10 +63,11 @@ usersRouter.post("/", (req, res) => {
   ).run(id, username.trim(), hashPassword(password), role, display_name.trim());
 
   const row = db.prepare(`SELECT ${PUBLIC_COLUMNS} FROM user WHERE id = ?`).get(id);
+  recordAudit(req, "user.create", { targetType: "user", targetId: id, detail: `${username.trim()} (${role})` });
   res.status(201).json(row);
 });
 
-usersRouter.patch("/:id", (req, res) => {
+usersRouter.patch("/:id", (req: AuthedRequest, res) => {
   const existing = db.prepare("SELECT * FROM user WHERE id = ?").get(req.params.id) as UserRow | undefined;
   if (!existing) {
     res.status(404).json({ error: "user not found" });
@@ -110,11 +112,17 @@ usersRouter.patch("/:id", (req, res) => {
     destroySessionsForUser(req.params.id);
   }
 
+  const changes: string[] = [];
+  if (updates.role !== existing.role) changes.push(`role: ${existing.role} → ${updates.role}`);
+  if (updates.display_name !== existing.display_name) changes.push(`display name: ${existing.display_name} → ${updates.display_name}`);
+  if (updates.active !== existing.active) changes.push(updates.active ? "reactivated" : "deactivated");
+
   const row = db.prepare(`SELECT ${PUBLIC_COLUMNS} FROM user WHERE id = ?`).get(req.params.id);
+  recordAudit(req, "user.update", { targetType: "user", targetId: req.params.id, detail: changes.join(", ") || null });
   res.json(row);
 });
 
-usersRouter.post("/:id/reset-password", (req, res) => {
+usersRouter.post("/:id/reset-password", (req: AuthedRequest, res) => {
   const existing = db.prepare("SELECT id FROM user WHERE id = ?").get(req.params.id) as { id: string } | undefined;
   if (!existing) {
     res.status(404).json({ error: "user not found" });
@@ -134,5 +142,6 @@ usersRouter.post("/:id/reset-password", (req, res) => {
   destroySessionsForUser(req.params.id);
 
   const row = db.prepare(`SELECT ${PUBLIC_COLUMNS} FROM user WHERE id = ?`).get(req.params.id);
+  recordAudit(req, "user.reset_password", { targetType: "user", targetId: req.params.id });
   res.json(row);
 });

@@ -4,6 +4,7 @@ import { db } from "../db";
 import { upload, removeUploadedFile } from "../lib/uploads";
 import { insertPlantPhoto } from "./photos";
 import { requireAdmin, type AuthedRequest, type AuthUser } from "../lib/auth";
+import { recordAudit } from "../lib/audit";
 
 export const plantsRouter = Router();
 
@@ -73,6 +74,13 @@ function serialize(row: PlantRow) {
 function speciesExists(speciesId: string): boolean {
   const row = db.prepare("SELECT 1 FROM species WHERE id = ?").get(speciesId);
   return !!row;
+}
+
+function speciesName(speciesId: string): string | null {
+  const row = db.prepare("SELECT common_name FROM species WHERE id = ?").get(speciesId) as
+    | { common_name: string }
+    | undefined;
+  return row?.common_name ?? null;
 }
 
 function todayISO(): string {
@@ -179,6 +187,7 @@ plantsRouter.post("/", (req: AuthedRequest, res) => {
   });
 
   const row = db.prepare("SELECT * FROM plant WHERE id = ?").get(id) as PlantRow;
+  recordAudit(req, "plant.create", { targetType: "plant", targetId: id, detail: speciesName(species_id) });
   res.status(201).json(serialize(row));
 });
 
@@ -262,7 +271,15 @@ plantsRouter.patch("/:id", (req: AuthedRequest, res) => {
       date_removed=@date_removed, geometry=@geometry, owner_id=@owner_id, updated_at=@updated_at WHERE id=@id`
   ).run(updates);
 
+  const changes: string[] = [];
+  if (updates.status !== existing.status) changes.push(`status: ${existing.status} → ${updates.status}`);
+  if (updates.owner_id !== existing.owner_id) changes.push("owner reassigned");
+  if (updates.species_id !== existing.species_id) changes.push("species changed");
+  if (Object.keys(body).some((k) => ["latitude", "longitude", "geometry"].includes(k))) changes.push("location edited");
+  if (body.notes !== undefined && body.notes !== existing.notes) changes.push("notes edited");
+
   const row = db.prepare("SELECT * FROM plant WHERE id = ?").get(req.params.id) as PlantRow;
+  recordAudit(req, "plant.update", { targetType: "plant", targetId: req.params.id, detail: changes.join(", ") || "details edited" });
   res.json(serialize(row));
 });
 
@@ -289,6 +306,11 @@ plantsRouter.post("/bulk-reassign", requireAdmin, (req: AuthedRequest, res) => {
     }
   })();
 
+  recordAudit(req, "plant.bulk_reassign", {
+    targetType: "user",
+    targetId: owner_id,
+    detail: `${updated.length} plant(s)`,
+  });
   res.json({ updated_count: updated.length, updated_ids: updated });
 });
 
@@ -341,6 +363,11 @@ plantsRouter.post("/bulk-copy", requireAdmin, (req: AuthedRequest, res) => {
     }
   })();
 
+  recordAudit(req, "plant.bulk_copy", {
+    targetType: "user",
+    targetId: owner.id,
+    detail: `${created.length} plant(s)`,
+  });
   res.status(201).json({ created_count: created.length, created_ids: created });
 });
 
@@ -363,6 +390,7 @@ plantsRouter.delete("/:id", (req: AuthedRequest, res) => {
   db.prepare("DELETE FROM plant WHERE id = ?").run(req.params.id);
   // plant_photo rows cascade-delete; clean up the files they referenced.
   for (const { path } of photoPaths) removeUploadedFile(path);
+  recordAudit(req, "plant.delete", { targetType: "plant", targetId: req.params.id });
   res.status(204).send();
 });
 
@@ -403,6 +431,7 @@ plantsRouter.post("/:id/regrowth", (req: AuthedRequest, res) => {
 
   const plant = db.prepare("SELECT * FROM plant WHERE id = ?").get(req.params.id) as PlantRow;
   const treatment = db.prepare("SELECT * FROM treatment WHERE id = ?").get(treatmentId);
+  recordAudit(req, "plant.regrowth", { targetType: "plant", targetId: req.params.id });
   res.status(201).json({ plant: serialize(plant), treatment });
 });
 

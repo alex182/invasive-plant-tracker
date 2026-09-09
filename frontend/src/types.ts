@@ -125,6 +125,20 @@ export interface SessionUser {
   real_admin: Impersonator | null;
 }
 
+export interface AuditLogEntry {
+  id: string;
+  actor_id: string | null;
+  actor_username: string | null;
+  actor_display_name: string | null;
+  impersonated_by: string | null;
+  impersonated_by_display_name: string | null;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  detail: string | null;
+  created_at: string;
+}
+
 export interface Treatment {
   id: string;
   plant_id: string;

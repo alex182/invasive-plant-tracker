@@ -1,4 +1,5 @@
 import type {
+  AuditLogEntry,
   IdentifyResult,
   IdentifySettings,
   NtfySettings,
@@ -132,5 +133,18 @@ export const api = {
       request<User>(`/users/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     resetPassword: (id: string, newPassword: string) =>
       request<User>(`/users/${id}/reset-password`, { method: "POST", body: JSON.stringify({ newPassword }) }),
+  },
+  auditLog: {
+    list: (filters?: { limit?: number; before?: string; actor_id?: string; action?: string }) => {
+      const params = new URLSearchParams();
+      if (filters?.limit) params.set("limit", String(filters.limit));
+      if (filters?.before) params.set("before", filters.before);
+      if (filters?.actor_id) params.set("actor_id", filters.actor_id);
+      if (filters?.action) params.set("action", filters.action);
+      const qs = params.toString();
+      return request<{ entries: AuditLogEntry[]; next_before: string | null }>(
+        `/audit-log${qs ? `?${qs}` : ""}`
+      );
+    },
   },
 };

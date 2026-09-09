@@ -2,6 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
 import type { AuthedRequest, AuthUser } from "../lib/auth";
+import { recordAudit } from "../lib/audit";
 
 export const treatmentsRouter = Router();
 
@@ -87,6 +88,11 @@ treatmentsRouter.post("/plants/:plantId/treatments", (req: AuthedRequest, res) =
   });
 
   const row = db.prepare("SELECT * FROM treatment WHERE id = ?").get(id);
+  recordAudit(req, "treatment.create", {
+    targetType: "plant",
+    targetId: req.params.plantId,
+    detail: outcome || method || "treatment logged",
+  });
   res.status(201).json(row);
 });
 

@@ -129,6 +129,16 @@ export function SettingsPage() {
       </div>
 
       <div className={styles.section}>
+        <h2>Audit log</h2>
+        <p className={styles.note}>See who's done what — logins, plant edits, treatments, and user management.</p>
+        <div className={styles.buttonRow}>
+          <Link to="/settings/audit-log" className={styles.secondaryButton}>
+            View audit log
+          </Link>
+        </div>
+      </div>
+
+      <div className={styles.section}>
         <h2>Plant identification (Pl@ntNet)</h2>
         <p className={styles.note}>
           The "Identify from photo" feature uses the{" "}

@@ -176,6 +176,22 @@ export function migrate(): void {
 
     CREATE INDEX IF NOT EXISTS idx_session_user ON session(user_id);
     CREATE INDEX IF NOT EXISTS idx_session_expires ON session(expires_at);
+
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id TEXT PRIMARY KEY,
+      actor_id TEXT REFERENCES user(id),
+      actor_username TEXT,
+      actor_display_name TEXT,
+      impersonated_by TEXT REFERENCES user(id),
+      action TEXT NOT NULL,
+      target_type TEXT,
+      target_id TEXT,
+      detail TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor_id);
   `);
 
   dropColumnIfPresent("species", "photo_url");

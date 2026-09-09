@@ -13,6 +13,7 @@ import {
 import { bootstrapAdmin, requireAuth, requireAdmin, sweepExpiredSessions } from "./lib/auth";
 import { authRouter } from "./routes/auth";
 import { usersRouter } from "./routes/users";
+import { auditRouter } from "./routes/audit";
 import { speciesRouter } from "./routes/species";
 import { plantsRouter } from "./routes/plants";
 import { treatmentsRouter } from "./routes/treatments";
@@ -55,6 +56,7 @@ export function createApp(): Express {
   app.use("/api/identify", identifyRouter);
   app.use("/api/users", requireAdmin, usersRouter);
   app.use("/api/ntfy", requireAdmin, ntfyRouter);
+  app.use("/api/audit-log", requireAdmin, auditRouter);
 
   return app;
 }

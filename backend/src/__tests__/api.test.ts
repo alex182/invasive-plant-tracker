@@ -11,6 +11,7 @@ const TEST_ADMIN_PASSWORD = "test-admin-password";
 let app: Express;
 let agent: ReturnType<typeof supertest.agent>;
 let adminDisplayName: string;
+let adminId: string;
 
 beforeAll(async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ipt-test-"));
@@ -25,6 +26,7 @@ beforeAll(async () => {
     .post("/api/auth/login")
     .send({ username: TEST_ADMIN_USERNAME, password: TEST_ADMIN_PASSWORD });
   adminDisplayName = login.body.display_name;
+  adminId = login.body.id;
 });
 
 describe("health", () => {
@@ -620,5 +622,69 @@ describe("roles and ownership", () => {
 
     const after = await userAgent.get("/api/auth/me");
     expect(after.status).toBe(401);
+  });
+});
+
+describe("audit log", () => {
+  it("is admin-only", async () => {
+    const freshUserAgent = supertest.agent(app);
+    await freshUserAgent.post("/api/auth/login").send({ username: "field-user", password: "new-password-123" });
+    const res = await freshUserAgent.get("/api/audit-log");
+    expect(res.status).toBe(403);
+  });
+
+  it("records plant and treatment activity, newest first", async () => {
+    const speciesId = (await agent.get("/api/species")).body[0].id;
+    const created = await agent
+      .post("/api/plants")
+      .send({ species_id: speciesId, latitude: 39.5, longitude: -94.4, date_identified: "2026-08-20" });
+    await agent.patch(`/api/plants/${created.body.id}`).send({ notes: "audit test" });
+    await agent.post(`/api/plants/${created.body.id}/treatments`).send({ date: "2026-08-21", outcome: "Cut-stump" });
+
+    const log = await agent.get("/api/audit-log?limit=5");
+    expect(log.status).toBe(200);
+    expect(log.body.entries.length).toBeGreaterThan(0);
+    const actions = log.body.entries.map((e: { action: string }) => e.action);
+    expect(actions[0]).toBe("treatment.create"); // most recent action first
+    expect(actions).toContain("plant.update");
+
+    const filtered = await agent.get(`/api/audit-log?action=plant.create&actor_id=${log.body.entries[0].actor_id}`);
+    expect(filtered.status).toBe(200);
+    expect(filtered.body.entries.every((e: { action: string }) => e.action === "plant.create")).toBe(true);
+  });
+
+  it("logs auth events: successful login, failed login, and impersonation", async () => {
+    const badLogin = await supertest(app).post("/api/auth/login").send({ username: "test-admin", password: "wrong" });
+    expect(badLogin.status).toBe(401);
+
+    const users = await agent.get("/api/users");
+    const fieldUserId = users.body.find((u: { username: string }) => u.username === "field-user").id;
+
+    const adminAgent = supertest.agent(app);
+    await adminAgent.post("/api/auth/login").send({ username: TEST_ADMIN_USERNAME, password: TEST_ADMIN_PASSWORD });
+    await adminAgent.post(`/api/auth/impersonate/${fieldUserId}`);
+    await adminAgent.post("/api/auth/stop-impersonating");
+
+    const log = await agent.get("/api/audit-log?limit=20");
+    const actions = log.body.entries.map((e: { action: string }) => e.action);
+    expect(actions).toContain("auth.login_failed");
+    expect(actions).toContain("auth.login");
+    expect(actions).toContain("auth.impersonate_start");
+    expect(actions).toContain("auth.impersonate_stop");
+
+    const impersonateEntry = log.body.entries.find((e: { action: string }) => e.action === "auth.impersonate_start");
+    expect(impersonateEntry.actor_id).toBe(adminId);
+  });
+
+  it("supports cursor pagination via `before`", async () => {
+    const first = await agent.get("/api/audit-log?limit=3");
+    expect(first.body.entries).toHaveLength(3);
+    expect(first.body.next_before).toBeTruthy();
+
+    const second = await agent.get(`/api/audit-log?limit=3&before=${encodeURIComponent(first.body.next_before)}`);
+    expect(second.status).toBe(200);
+    const firstIds = first.body.entries.map((e: { id: string }) => e.id);
+    const secondIds = second.body.entries.map((e: { id: string }) => e.id);
+    expect(secondIds.some((id: string) => firstIds.includes(id))).toBe(false); // no overlap
   });
 });
