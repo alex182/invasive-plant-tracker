@@ -2,6 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
 import { upload, removeUploadedFile } from "../lib/uploads";
+import type { AuthedRequest, AuthUser } from "../lib/auth";
 
 export const photosRouter = Router();
 
@@ -13,6 +14,16 @@ interface PhotoRow {
   caption: string;
   taken_on: string;
   created_at: string;
+}
+
+function canMutate(user: AuthUser, ownerId: string | null): boolean {
+  return user.role === "admin" || user.id === ownerId;
+}
+
+function plantOwner(plantId: string): { owner_id: string | null } | undefined {
+  return db.prepare("SELECT owner_id FROM plant WHERE id = ?").get(plantId) as
+    | { owner_id: string | null }
+    | undefined;
 }
 
 function todayISO(): string {
@@ -75,10 +86,16 @@ photosRouter.get("/plants/:id/photos", (req, res) => {
   res.json(rows);
 });
 
-photosRouter.post("/plants/:id/photos", upload.single("photo"), (req, res) => {
-  if (!plantExists(req.params.id)) {
+photosRouter.post("/plants/:id/photos", upload.single("photo"), (req: AuthedRequest, res) => {
+  const plant = plantOwner(req.params.id);
+  if (!plant) {
     if (req.file) removeUploadedFile(`/uploads/${req.file.filename}`);
     res.status(404).json({ error: "plant not found" });
+    return;
+  }
+  if (!canMutate(req.user!, plant.owner_id)) {
+    if (req.file) removeUploadedFile(`/uploads/${req.file.filename}`);
+    res.status(403).json({ error: "you can only add photos to plants you own" });
     return;
   }
   if (!req.file) {
@@ -105,12 +122,17 @@ photosRouter.post("/plants/:id/photos", upload.single("photo"), (req, res) => {
   res.status(201).json(photo);
 });
 
-photosRouter.patch("/photos/:photoId", (req, res) => {
+photosRouter.patch("/photos/:photoId", (req: AuthedRequest, res) => {
   const existing = db.prepare("SELECT * FROM plant_photo WHERE id = ?").get(req.params.photoId) as
     | PhotoRow
     | undefined;
   if (!existing) {
     res.status(404).json({ error: "photo not found" });
+    return;
+  }
+  const plant = plantOwner(existing.plant_id);
+  if (!plant || !canMutate(req.user!, plant.owner_id)) {
+    res.status(403).json({ error: "you can only edit photos on plants you own" });
     return;
   }
 
@@ -140,12 +162,17 @@ photosRouter.patch("/photos/:photoId", (req, res) => {
   res.json(db.prepare("SELECT * FROM plant_photo WHERE id = ?").get(req.params.photoId));
 });
 
-photosRouter.delete("/photos/:photoId", (req, res) => {
+photosRouter.delete("/photos/:photoId", (req: AuthedRequest, res) => {
   const existing = db.prepare("SELECT * FROM plant_photo WHERE id = ?").get(req.params.photoId) as
     | PhotoRow
     | undefined;
   if (!existing) {
     res.status(404).json({ error: "photo not found" });
+    return;
+  }
+  const plant = plantOwner(existing.plant_id);
+  if (!plant || !canMutate(req.user!, plant.owner_id)) {
+    res.status(403).json({ error: "you can only delete photos on plants you own" });
     return;
   }
   db.prepare("DELETE FROM plant_photo WHERE id = ?").run(req.params.photoId);

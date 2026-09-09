@@ -6,9 +6,9 @@ import { useGeolocation } from "../hooks/useGeolocation";
 import { useSpecies } from "../hooks/useSpecies";
 import { api } from "../lib/api";
 import { queuePlantCreate } from "../lib/offlineQueue";
-import { getObserver } from "../lib/observer";
 import { STATUS_LABEL, STATUS_ORDER } from "../lib/status";
-import type { IdentifyResult, Plant, PlantStatus, Species } from "../types";
+import { useAuth } from "../context/AuthContext";
+import type { IdentifyResult, Plant, PlantStatus, Species, User } from "../types";
 import styles from "./PlantFormPage.module.css";
 
 /** Matches a Pl@ntNet scientific name against our small tracked catalog by exact genus+species. */
@@ -58,6 +58,10 @@ export function PlantFormPage() {
   const navigate = useNavigate();
   const { species, loading: speciesLoading } = useSpecies();
   const { getPosition, loading: locating, error: geoError } = useGeolocation();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const [users, setUsers] = useState<User[]>([]);
+  const [ownerId, setOwnerId] = useState("");
 
   const [speciesId, setSpeciesId] = useState(searchParams.get("species") ?? "");
   const [latitude, setLatitude] = useState(searchParams.get("lat") ?? "");
@@ -93,8 +97,14 @@ export function PlantFormPage() {
       setDateStarted(plant.date_started ?? "");
       setDateRemoved(plant.date_removed ?? "");
       setGeometry(plant.geometry ?? null);
+      setOwnerId(plant.owner_id ?? "");
     });
   }, [isEdit, id]);
+
+  useEffect(() => {
+    if (!isAdmin || !isEdit) return;
+    api.users.list().then(setUsers);
+  }, [isAdmin, isEdit]);
 
   useEffect(() => {
     if (!isEdit && !speciesId && species.length > 0) {
@@ -172,8 +182,7 @@ export function PlantFormPage() {
       geometry,
     };
 
-    // Attribution is recorded once, at creation.
-    const createPayload: Partial<Plant> = { ...payload, logged_by: getObserver() || null };
+    if (isEdit && isAdmin && ownerId) payload.owner_id = ownerId;
 
     setSubmitting(true);
     try {
@@ -181,13 +190,13 @@ export function PlantFormPage() {
         await api.plants.update(id, payload);
         navigate(`/plants/${id}`);
       } else {
-        const created = await api.plants.create(createPayload);
+        const created = await api.plants.create(payload);
         navigate(`/plants/${created.id}`);
       }
     } catch (err) {
       if (!isEdit && (err instanceof TypeError || !navigator.onLine)) {
         // Network unreachable: queue for background sync instead of losing the entry.
-        queuePlantCreate(createPayload);
+        queuePlantCreate(payload);
         navigate("/");
         return;
       }
@@ -378,6 +387,19 @@ export function PlantFormPage() {
         <label htmlFor="dateRemoved">Date removed (optional)</label>
         <input id="dateRemoved" type="date" value={dateRemoved} onChange={(e) => setDateRemoved(e.target.value)} />
       </div>
+
+      {isEdit && isAdmin && (
+        <div className={styles.field}>
+          <label htmlFor="owner">Owner</label>
+          <select id="owner" value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.display_name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {error && <div className={styles.error}>{error}</div>}
 

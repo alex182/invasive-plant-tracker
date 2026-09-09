@@ -60,6 +60,8 @@ export interface Plant {
   geometry: [number, number][] | null;
   /** Name of whoever logged this plant (set once at creation), or null. */
   logged_by: string | null;
+  /** The user who owns this plant, or null for legacy pre-account records. */
+  owner_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -92,6 +94,18 @@ export interface IdentifyResult {
   scientific_name: string;
   common_names: string[];
   score: number;
+}
+
+export type Role = "admin" | "user";
+
+export interface User {
+  id: string;
+  username: string;
+  role: Role;
+  display_name: string;
+  active: boolean | number;
+  must_change_password: boolean | number;
+  created_at: string;
 }
 
 export interface Treatment {

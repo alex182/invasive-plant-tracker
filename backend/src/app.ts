@@ -1,5 +1,6 @@
 import express, { Express } from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import path from "node:path";
 import { migrate } from "./db/migrate";
 import {
@@ -9,6 +10,9 @@ import {
   backfillLookalikes,
   backfillRemovalMethods,
 } from "./db/seed";
+import { bootstrapAdmin, requireAuth, requireAdmin, sweepExpiredSessions } from "./lib/auth";
+import { authRouter } from "./routes/auth";
+import { usersRouter } from "./routes/users";
 import { speciesRouter } from "./routes/species";
 import { plantsRouter } from "./routes/plants";
 import { treatmentsRouter } from "./routes/treatments";
@@ -24,10 +28,13 @@ export function createApp(): Express {
   backfillPhotos();
   backfillLookalikes();
   backfillRemovalMethods();
+  bootstrapAdmin();
+  sweepExpiredSessions();
 
   const app = express();
   app.use(cors());
   app.use(express.json());
+  app.use(cookieParser());
 
   const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, "..", "uploads");
   app.use("/uploads", express.static(uploadsDir));
@@ -36,13 +43,18 @@ export function createApp(): Express {
     res.status(200).json({ status: "ok" });
   });
 
+  app.use("/api/auth", authRouter);
+
+  app.use(requireAuth);
+
   app.use("/api/species", speciesRouter);
   app.use("/api/plants", plantsRouter);
   app.use("/api", treatmentsRouter);
   app.use("/api", photosRouter);
   app.use("/api/export", exportRouter);
   app.use("/api/identify", identifyRouter);
-  app.use("/api/ntfy", ntfyRouter);
+  app.use("/api/users", requireAdmin, usersRouter);
+  app.use("/api/ntfy", requireAdmin, ntfyRouter);
 
   return app;
 }

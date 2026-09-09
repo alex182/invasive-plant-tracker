@@ -9,6 +9,8 @@ services:
       - UPLOADS_DIR=/uploads
       - PLANTNET_API_KEY=${PLANTNET_API_KEY:-}
       - PLANTNET_PROJECT=${PLANTNET_PROJECT:-all}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
     volumes:
       - db_data:/data
       - uploads_data:/uploads

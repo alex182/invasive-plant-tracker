@@ -1,6 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { getSetting, setSetting, deleteSetting } from "../lib/settings";
+import { requireAdmin } from "../lib/auth";
 
 export const identifyRouter = Router();
 
@@ -30,7 +31,7 @@ interface PlantNetResponse {
   results?: PlantNetResult[];
 }
 
-identifyRouter.get("/settings", (_req, res) => {
+identifyRouter.get("/settings", requireAdmin, (_req, res) => {
   res.json({
     hasKey: Boolean(getApiKey()),
     keyFromEnv: !getSetting("plantnet_api_key") && Boolean(process.env.PLANTNET_API_KEY),
@@ -38,7 +39,7 @@ identifyRouter.get("/settings", (_req, res) => {
   });
 });
 
-identifyRouter.put("/settings", (req, res) => {
+identifyRouter.put("/settings", requireAdmin, (req, res) => {
   const { apiKey, project } = req.body ?? {};
 
   if (apiKey === "") {

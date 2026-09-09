@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { BottomNav } from "./components/BottomNav";
 import { TopBar } from "./components/TopBar";
 import { MapPage } from "./pages/MapPage";
@@ -10,7 +10,11 @@ import { PlantFormPage } from "./pages/PlantFormPage";
 import { PlantDetailPage } from "./pages/PlantDetailPage";
 import { PlantsListPage } from "./pages/PlantsListPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { UsersPage } from "./pages/UsersPage";
+import { LoginPage } from "./pages/LoginPage";
+import { ChangePasswordPage } from "./pages/ChangePasswordPage";
 import { flushQueue } from "./lib/offlineQueue";
+import { useAuth } from "./context/AuthContext";
 
 const TITLES: Record<string, string> = {
   "/": "Map",
@@ -20,6 +24,7 @@ const TITLES: Record<string, string> = {
   "/guide": "Guide",
   "/add": "New plant",
   "/settings": "Settings",
+  "/settings/users": "Users",
 };
 
 function titleFor(pathname: string): string {
@@ -31,10 +36,17 @@ function titleFor(pathname: string): string {
 
 export default function App() {
   const location = useLocation();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    flushQueue();
-  }, []);
+    if (user) flushQueue();
+  }, [user]);
+
+  if (loading) return null;
+
+  if (!user) return <LoginPage />;
+
+  if (user.must_change_password) return <ChangePasswordPage />;
 
   return (
     <>
@@ -49,7 +61,14 @@ export default function App() {
           <Route path="/add" element={<PlantFormPage />} />
           <Route path="/plants/:id" element={<PlantDetailPage />} />
           <Route path="/plants/:id/edit" element={<PlantFormPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route
+            path="/settings"
+            element={user.role === "admin" ? <SettingsPage /> : <Navigate to="/" replace />}
+          />
+          <Route
+            path="/settings/users"
+            element={user.role === "admin" ? <UsersPage /> : <Navigate to="/" replace />}
+          />
         </Routes>
       </main>
       <BottomNav />

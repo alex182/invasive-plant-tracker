@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { db } from "../db";
 import { upload, removeUploadedFile } from "../lib/uploads";
 import { insertPlantPhoto } from "./photos";
+import type { AuthedRequest, AuthUser } from "../lib/auth";
 
 export const plantsRouter = Router();
 
@@ -24,8 +25,17 @@ interface PlantRow {
   date_removed: string | null;
   geometry: string | null;
   logged_by: string | null;
+  owner_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+function canMutate(user: AuthUser, ownerId: string | null): boolean {
+  return user.role === "admin" || user.id === ownerId;
+}
+
+function userExists(id: string): boolean {
+  return !!db.prepare("SELECT 1 FROM user WHERE id = ?").get(id);
 }
 
 function isValidLatLng(lat: unknown, lng: unknown): boolean {
@@ -100,7 +110,7 @@ plantsRouter.get("/:id", (req, res) => {
   res.json(serialize(row));
 });
 
-plantsRouter.post("/", (req, res) => {
+plantsRouter.post("/", (req: AuthedRequest, res) => {
   const body = req.body ?? {};
   const {
     species_id,
@@ -114,7 +124,6 @@ plantsRouter.post("/", (req, res) => {
     date_started = null,
     date_removed = null,
     geometry = null,
-    logged_by = null,
   } = body;
 
   if (typeof species_id !== "string" || !speciesExists(species_id)) {
@@ -143,8 +152,8 @@ plantsRouter.post("/", (req, res) => {
   const geometryJson = geometry ? JSON.stringify(geometry) : null;
 
   db.prepare(
-    `INSERT INTO plant (id, species_id, latitude, longitude, gps_accuracy_m, status, method, notes, date_identified, date_started, date_removed, geometry, logged_by, created_at, updated_at)
-     VALUES (@id, @species_id, @latitude, @longitude, @gps_accuracy_m, @status, @method, @notes, @date_identified, @date_started, @date_removed, @geometry, @logged_by, @now, @now)`
+    `INSERT INTO plant (id, species_id, latitude, longitude, gps_accuracy_m, status, method, notes, date_identified, date_started, date_removed, geometry, logged_by, owner_id, created_at, updated_at)
+     VALUES (@id, @species_id, @latitude, @longitude, @gps_accuracy_m, @status, @method, @notes, @date_identified, @date_started, @date_removed, @geometry, @logged_by, @owner_id, @now, @now)`
   ).run({
     id,
     species_id,
@@ -158,7 +167,8 @@ plantsRouter.post("/", (req, res) => {
     date_started,
     date_removed,
     geometry: geometryJson,
-    logged_by: typeof logged_by === "string" && logged_by ? logged_by : null,
+    logged_by: req.user!.display_name,
+    owner_id: req.user!.id,
     now,
   });
 
@@ -166,15 +176,27 @@ plantsRouter.post("/", (req, res) => {
   res.status(201).json(serialize(row));
 });
 
-plantsRouter.patch("/:id", (req, res) => {
+plantsRouter.patch("/:id", (req: AuthedRequest, res) => {
   const existing = db.prepare("SELECT * FROM plant WHERE id = ?").get(req.params.id) as PlantRow | undefined;
   if (!existing) {
     res.status(404).json({ error: "plant not found" });
     return;
   }
+  if (!canMutate(req.user!, existing.owner_id)) {
+    res.status(403).json({ error: "you can only edit plants you own" });
+    return;
+  }
 
   const body = req.body ?? {};
   const updates: Record<string, unknown> = { ...existing };
+
+  if (req.user!.role === "admin" && body.owner_id !== undefined) {
+    if (typeof body.owner_id !== "string" || !userExists(body.owner_id)) {
+      res.status(400).json({ error: "owner_id must reference an existing user" });
+      return;
+    }
+    updates.owner_id = body.owner_id;
+  }
 
   if (body.species_id !== undefined) {
     if (typeof body.species_id !== "string" || !speciesExists(body.species_id)) {
@@ -231,22 +253,30 @@ plantsRouter.patch("/:id", (req, res) => {
   db.prepare(
     `UPDATE plant SET species_id=@species_id, latitude=@latitude, longitude=@longitude, gps_accuracy_m=@gps_accuracy_m,
       status=@status, method=@method, notes=@notes, date_identified=@date_identified, date_started=@date_started,
-      date_removed=@date_removed, geometry=@geometry, updated_at=@updated_at WHERE id=@id`
+      date_removed=@date_removed, geometry=@geometry, owner_id=@owner_id, updated_at=@updated_at WHERE id=@id`
   ).run(updates);
 
   const row = db.prepare("SELECT * FROM plant WHERE id = ?").get(req.params.id) as PlantRow;
   res.json(serialize(row));
 });
 
-plantsRouter.delete("/:id", (req, res) => {
-  const photoPaths = db
-    .prepare("SELECT path FROM plant_photo WHERE plant_id = ?")
-    .all(req.params.id) as { path: string }[];
-  const result = db.prepare("DELETE FROM plant WHERE id = ?").run(req.params.id);
-  if (result.changes === 0) {
+plantsRouter.delete("/:id", (req: AuthedRequest, res) => {
+  const existing = db.prepare("SELECT owner_id FROM plant WHERE id = ?").get(req.params.id) as
+    | { owner_id: string | null }
+    | undefined;
+  if (!existing) {
     res.status(404).json({ error: "plant not found" });
     return;
   }
+  if (!canMutate(req.user!, existing.owner_id)) {
+    res.status(403).json({ error: "you can only delete plants you own" });
+    return;
+  }
+
+  const photoPaths = db
+    .prepare("SELECT path FROM plant_photo WHERE plant_id = ?")
+    .all(req.params.id) as { path: string }[];
+  db.prepare("DELETE FROM plant WHERE id = ?").run(req.params.id);
   // plant_photo rows cascade-delete; clean up the files they referenced.
   for (const { path } of photoPaths) removeUploadedFile(path);
   res.status(204).send();
@@ -256,15 +286,18 @@ plantsRouter.delete("/:id", (req, res) => {
  * Reopen a plant when regrowth is spotted: logs a "Regrowth found" treatment with a fresh
  * follow-up, flips status back to in-progress, and clears the removal date.
  */
-plantsRouter.post("/:id/regrowth", (req, res) => {
+plantsRouter.post("/:id/regrowth", (req: AuthedRequest, res) => {
   const existing = db.prepare("SELECT * FROM plant WHERE id = ?").get(req.params.id) as PlantRow | undefined;
   if (!existing) {
     res.status(404).json({ error: "plant not found" });
     return;
   }
+  if (!canMutate(req.user!, existing.owner_id)) {
+    res.status(403).json({ error: "you can only log regrowth on plants you own" });
+    return;
+  }
 
-  const loggedBy =
-    typeof req.body?.logged_by === "string" && req.body.logged_by ? req.body.logged_by : null;
+  const loggedBy = req.user!.display_name;
   const today = todayISO();
   const followup = new Date();
   followup.setDate(followup.getDate() + 120);
@@ -289,10 +322,14 @@ plantsRouter.post("/:id/regrowth", (req, res) => {
   res.status(201).json({ plant: serialize(plant), treatment });
 });
 
-plantsRouter.post("/:id/photo", upload.single("photo"), (req, res) => {
+plantsRouter.post("/:id/photo", upload.single("photo"), (req: AuthedRequest, res) => {
   const existing = db.prepare("SELECT * FROM plant WHERE id = ?").get(req.params.id) as PlantRow | undefined;
   if (!existing) {
     res.status(404).json({ error: "plant not found" });
+    return;
+  }
+  if (!canMutate(req.user!, existing.owner_id)) {
+    res.status(403).json({ error: "you can only add photos to plants you own" });
     return;
   }
   if (!req.file) {

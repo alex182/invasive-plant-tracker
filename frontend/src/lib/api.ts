@@ -4,8 +4,10 @@ import type {
   NtfySettings,
   Plant,
   PlantPhoto,
+  Role,
   Species,
   Treatment,
+  User,
 } from "../types";
 import { downscaleImage } from "./resizeImage";
 
@@ -48,10 +50,10 @@ export const api = {
       form.append("photo", await downscaleImage(file));
       return request<Plant>(`/plants/${id}/photo`, { method: "POST", body: form });
     },
-    regrowth: (id: string, data: { logged_by?: string | null }) =>
+    regrowth: (id: string) =>
       request<{ plant: Plant; treatment: Treatment }>(`/plants/${id}/regrowth`, {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify({}),
       }),
   },
   photos: {
@@ -96,5 +98,25 @@ export const api = {
       request<Treatment>(`/plants/${plantId}/treatments`, { method: "POST", body: JSON.stringify(data) }),
     update: (id: string, data: Partial<Treatment>) =>
       request<Treatment>(`/treatments/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  },
+  auth: {
+    me: () => request<User>("/auth/me"),
+    login: (username: string, password: string) =>
+      request<User>("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
+    logout: () => request<void>("/auth/logout", { method: "POST" }),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      request<User>("/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({ currentPassword, newPassword }),
+      }),
+  },
+  users: {
+    list: () => request<User[]>("/users"),
+    create: (data: { username: string; password: string; role: Role; display_name: string }) =>
+      request<User>("/users", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, data: { role?: Role; display_name?: string; active?: boolean }) =>
+      request<User>(`/users/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    resetPassword: (id: string, newPassword: string) =>
+      request<User>(`/users/${id}/reset-password`, { method: "POST", body: JSON.stringify({ newPassword }) }),
   },
 };

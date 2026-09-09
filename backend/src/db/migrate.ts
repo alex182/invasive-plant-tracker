@@ -155,6 +155,27 @@ export function migrate(): void {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS user (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin','user')),
+      display_name TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      must_change_password INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS session (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_session_user ON session(user_id);
+    CREATE INDEX IF NOT EXISTS idx_session_expires ON session(expires_at);
   `);
 
   dropColumnIfPresent("species", "photo_url");
@@ -166,6 +187,8 @@ export function migrate(): void {
   addColumnIfMissing("plant", "geometry", "TEXT");
   addColumnIfMissing("plant", "logged_by", "TEXT");
   addColumnIfMissing("treatment", "logged_by", "TEXT");
+  addColumnIfMissing("plant", "owner_id", "TEXT REFERENCES user(id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_plant_owner ON plant(owner_id)");
 
   widenPlantStatusCheck();
   backfillPlantPhotos();

@@ -78,7 +78,8 @@ export function pendingPlants(): Plant[] {
         date_started: i.payload.date_started ?? null,
         date_removed: i.payload.date_removed ?? null,
         geometry: i.payload.geometry ?? null,
-        logged_by: i.payload.logged_by ?? null,
+        logged_by: null,
+        owner_id: null,
         created_at: iso,
         updated_at: iso,
       };

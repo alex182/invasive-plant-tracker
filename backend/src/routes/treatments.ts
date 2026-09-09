@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
+import type { AuthedRequest, AuthUser } from "../lib/auth";
 
 export const treatmentsRouter = Router();
 
@@ -16,6 +17,16 @@ interface TreatmentRow {
   logged_by: string | null;
   created_at: string;
   updated_at: string;
+}
+
+function canMutate(user: AuthUser, ownerId: string | null): boolean {
+  return user.role === "admin" || user.id === ownerId;
+}
+
+function plantOwner(plantId: string): { owner_id: string | null } | undefined {
+  return db.prepare("SELECT owner_id FROM plant WHERE id = ?").get(plantId) as
+    | { owner_id: string | null }
+    | undefined;
 }
 
 function plantExists(plantId: string): boolean {
@@ -38,14 +49,19 @@ treatmentsRouter.get("/plants/:plantId/treatments", (req, res) => {
   res.json(rows);
 });
 
-treatmentsRouter.post("/plants/:plantId/treatments", (req, res) => {
-  if (!plantExists(req.params.plantId)) {
+treatmentsRouter.post("/plants/:plantId/treatments", (req: AuthedRequest, res) => {
+  const plant = plantOwner(req.params.plantId);
+  if (!plant) {
     res.status(404).json({ error: "plant not found" });
+    return;
+  }
+  if (!canMutate(req.user!, plant.owner_id)) {
+    res.status(403).json({ error: "you can only log treatments on plants you own" });
     return;
   }
 
   const body = req.body ?? {};
-  const { date, method = null, herbicide = null, outcome = null, followup_due = null, logged_by = null } = body;
+  const { date, method = null, herbicide = null, outcome = null, followup_due = null } = body;
 
   if (typeof date !== "string" || !date) {
     res.status(400).json({ error: "date is required" });
@@ -66,7 +82,7 @@ treatmentsRouter.post("/plants/:plantId/treatments", (req, res) => {
     herbicide,
     outcome,
     followup_due,
-    logged_by: typeof logged_by === "string" && logged_by ? logged_by : null,
+    logged_by: req.user!.display_name,
     now,
   });
 
@@ -74,12 +90,17 @@ treatmentsRouter.post("/plants/:plantId/treatments", (req, res) => {
   res.status(201).json(row);
 });
 
-treatmentsRouter.patch("/treatments/:id", (req, res) => {
+treatmentsRouter.patch("/treatments/:id", (req: AuthedRequest, res) => {
   const existing = db.prepare("SELECT * FROM treatment WHERE id = ?").get(req.params.id) as
     | TreatmentRow
     | undefined;
   if (!existing) {
     res.status(404).json({ error: "treatment not found" });
+    return;
+  }
+  const plant = plantOwner(existing.plant_id);
+  if (!plant || !canMutate(req.user!, plant.owner_id)) {
+    res.status(403).json({ error: "you can only edit treatments on plants you own" });
     return;
   }
 

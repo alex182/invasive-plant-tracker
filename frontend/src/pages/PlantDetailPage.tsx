@@ -4,7 +4,6 @@ import { MapContainer, Polygon, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { api } from "../lib/api";
 import { isPendingId, pendingPlants, queueTreatmentCreate } from "../lib/offlineQueue";
-import { getObserver } from "../lib/observer";
 import { bearingLabel, formatDistance, haversineMeters, mapsDirectionsUrl } from "../lib/geo";
 import { useSpecies } from "../hooks/useSpecies";
 import { usePlantPhotos } from "../hooks/usePlantPhotos";
@@ -215,7 +214,7 @@ export function PlantDetailPage() {
     if (!confirm("Log regrowth? This reopens the plant as in-progress and adds a follow-up.")) return;
     setRegrowthBusy(true);
     try {
-      const { plant: updated, treatment } = await api.plants.regrowth(id, { logged_by: getObserver() || null });
+      const { plant: updated, treatment } = await api.plants.regrowth(id);
       setPlant(updated);
       setTreatments((prev) => [treatment, ...prev]);
     } catch (err) {
@@ -242,7 +241,6 @@ export function PlantDetailPage() {
       herbicide: tHerbicide || null,
       outcome: tOutcome || null,
       followup_due: tFollowup || null,
-      logged_by: getObserver() || null,
     };
     try {
       if (isPending) {
