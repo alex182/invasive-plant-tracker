@@ -24,6 +24,8 @@ export function PlantsListPage() {
   const { getPosition } = useGeolocation();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  // An impersonating admin can still bulk-copy the impersonated user's own plants elsewhere.
+  const canBulkCopy = isAdmin || Boolean(user?.impersonating);
   const [statusFilter, setStatusFilter] = useState<Set<PlantStatus>>(new Set(STATUS_ORDER));
   const [speciesFilter, setSpeciesFilter] = useState("");
   const [mineOnly, setMineOnly] = useState(() => user?.role !== "admin");
@@ -48,8 +50,8 @@ export function PlantsListPage() {
   const [dupMessage, setDupMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isAdmin) api.users.list().then(setUsers);
-  }, [isAdmin]);
+    if (canBulkCopy) api.users.list().then(setUsers);
+  }, [canBulkCopy]);
 
   const speciesById = useMemo(() => new Map(species.map((s) => [s.id, s])), [species]);
 
@@ -107,6 +109,11 @@ export function PlantsListPage() {
 
   function toggleSelectAll(ids: string[]) {
     setSelected((prev) => (prev.size === ids.length ? new Set() : new Set(ids)));
+  }
+
+  /** While impersonating (not truly admin), only the impersonated user's own plants are eligible. */
+  function canSelectForBulkCopy(p: Plant): boolean {
+    return isAdmin || p.owner_id === user?.id;
   }
 
   async function handleBulkReassign(mode: "move" | "copy") {
@@ -258,15 +265,18 @@ export function PlantsListPage() {
         <button type="button" className={styles.distanceButton} onClick={openDuplicatesPanel}>
           🧹 Remove duplicates
         </button>
-        {isAdmin && (
+        {canBulkCopy && (
           <button type="button" className={styles.distanceButton} onClick={toggleSelectMode}>
-            {selectMode ? "Cancel" : "🔀 Reassign / copy"}
+            {selectMode ? "Cancel" : isAdmin ? "🔀 Reassign / copy" : "🔀 Copy to user"}
           </button>
         )}
       </div>
 
       {selectMode && (
         <div className={styles.bulkBar}>
+          {!isAdmin && user?.impersonating && (
+            <span className={styles.note}>Only {user.display_name}'s own plants can be copied here.</span>
+          )}
           <span>{selected.size} selected</span>
           <select value={reassignTo} onChange={(e) => setReassignTo(e.target.value)}>
             <option value="">Choose a user…</option>
@@ -276,14 +286,16 @@ export function PlantsListPage() {
               </option>
             ))}
           </select>
-          <button
-            type="button"
-            className={styles.distanceButton}
-            onClick={() => handleBulkReassign("move")}
-            disabled={selected.size === 0 || !reassignTo || reassigning}
-          >
-            {reassigning ? "Working…" : "Reassign"}
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              className={styles.distanceButton}
+              onClick={() => handleBulkReassign("move")}
+              disabled={selected.size === 0 || !reassignTo || reassigning}
+            >
+              {reassigning ? "Working…" : "Reassign"}
+            </button>
+          )}
           <button
             type="button"
             className={styles.distanceButton}
@@ -355,8 +367,12 @@ export function PlantsListPage() {
                   <th>
                     <input
                       type="checkbox"
-                      checked={rows.length > 0 && selected.size === rows.length}
-                      onChange={() => toggleSelectAll(rows.map((p) => p.id))}
+                      checked={
+                        rows.length > 0 &&
+                        selected.size === rows.filter(canSelectForBulkCopy).length &&
+                        selected.size > 0
+                      }
+                      onChange={() => toggleSelectAll(rows.filter(canSelectForBulkCopy).map((p) => p.id))}
                       aria-label="Select all"
                     />
                   </th>
@@ -379,6 +395,7 @@ export function PlantsListPage() {
                           type="checkbox"
                           checked={selected.has(p.id)}
                           onChange={() => toggleSelected(p.id)}
+                          disabled={!canSelectForBulkCopy(p)}
                           aria-label={`Select ${sp?.common_name ?? "plant"}`}
                         />
                       </td>

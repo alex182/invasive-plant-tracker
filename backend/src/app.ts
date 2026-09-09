@@ -54,7 +54,7 @@ export function createApp(): Express {
   app.use("/api", photosRouter);
   app.use("/api/export", exportRouter);
   app.use("/api/identify", identifyRouter);
-  app.use("/api/users", requireAdmin, usersRouter);
+  app.use("/api/users", usersRouter); // per-route admin (or admin-impersonating) checks inside
   app.use("/api/ntfy", requireAdmin, ntfyRouter);
   app.use("/api/audit-log", requireAdmin, auditRouter);
 

@@ -124,6 +124,19 @@ export function requireAdmin(req: AuthedRequest, res: Response, next: NextFuncti
   next();
 }
 
+/**
+ * Like requireAdmin, but also lets an impersonation session through — req.impersonation is only
+ * ever set on a session an admin created via POST /auth/impersonate, so the real actor is still
+ * provably an admin even though the effective role (req.user.role) is whoever they're viewing as.
+ */
+export function requireAdminOrImpersonating(req: AuthedRequest, res: Response, next: NextFunction): void {
+  if (req.user?.role !== "admin" && !req.impersonation) {
+    res.status(403).json({ error: "admin access required" });
+    return;
+  }
+  next();
+}
+
 export function sweepExpiredSessions(): void {
   db.prepare("DELETE FROM session WHERE expires_at < datetime('now')").run();
 }

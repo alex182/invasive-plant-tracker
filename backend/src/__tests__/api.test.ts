@@ -578,8 +578,12 @@ describe("roles and ownership", () => {
     expect(me.body.id).toBe(userId);
     expect(me.body.impersonating).toBe(true);
 
-    // Acting as the impersonated user: admin-only routes are now forbidden...
-    expect((await adminAgent.get("/api/users")).status).toBe(403);
+    // Acting as the impersonated user: most admin-only routes are still forbidden...
+    expect((await adminAgent.get("/api/ntfy/settings")).status).toBe(403);
+    expect((await adminAgent.post("/api/users").send({})).status).toBe(403);
+    // ...except listing users, which stays open during impersonation so the target-user
+    // picker for bulk-copy works without having to stop impersonating first.
+    expect((await adminAgent.get("/api/users")).status).toBe(200);
     // ...but the impersonated user's own plant is editable.
     const ownPlant = await adminAgent.patch(`/api/plants/${userPlantId}`).send({ notes: "via impersonation" });
     expect(ownPlant.status).toBe(200);
@@ -686,6 +690,54 @@ describe("audit log", () => {
     const firstIds = first.body.entries.map((e: { id: string }) => e.id);
     const secondIds = second.body.entries.map((e: { id: string }) => e.id);
     expect(secondIds.some((id: string) => firstIds.includes(id))).toBe(false); // no overlap
+  });
+});
+
+describe("bulk-copy while impersonating", () => {
+  it("lets an admin copy all of the impersonated user's plants to another user, but nobody else's", async () => {
+    const speciesId = (await agent.get("/api/species")).body[0].id;
+
+    const source = await agent.post("/api/users").send({
+      username: "copy-source",
+      password: "copy-source-password",
+      role: "user",
+      display_name: "Copy Source",
+    });
+    const target = await agent.post("/api/users").send({
+      username: "copy-target",
+      password: "copy-target-password",
+      role: "user",
+      display_name: "Copy Target",
+    });
+
+    // A plant belonging to the admin, not the impersonated user — must never be copyable via this path.
+    const adminPlant = await agent
+      .post("/api/plants")
+      .send({ species_id: speciesId, latitude: 39.7, longitude: -94.3, date_identified: "2026-08-20" });
+
+    const adminAgent = supertest.agent(app);
+    await adminAgent.post("/api/auth/login").send({ username: TEST_ADMIN_USERNAME, password: TEST_ADMIN_PASSWORD });
+    await adminAgent.post(`/api/auth/impersonate/${source.body.id}`);
+
+    const own1 = await adminAgent
+      .post("/api/plants")
+      .send({ species_id: speciesId, latitude: 39.71, longitude: -94.31, date_identified: "2026-08-20" });
+    const own2 = await adminAgent
+      .post("/api/plants")
+      .send({ species_id: speciesId, latitude: 39.72, longitude: -94.32, date_identified: "2026-08-20" });
+    expect(own1.body.owner_id).toBe(source.body.id);
+
+    const copyRes = await adminAgent.post("/api/plants/bulk-copy").send({
+      plant_ids: [own1.body.id, own2.body.id, adminPlant.body.id],
+      owner_id: target.body.id,
+    });
+    expect(copyRes.status).toBe(201);
+    expect(copyRes.body.created_count).toBe(2); // adminPlant silently excluded — not owned by the impersonated user
+
+    for (const id of copyRes.body.created_ids) {
+      const copy = await adminAgent.get(`/api/plants/${id}`);
+      expect(copy.body.owner_id).toBe(target.body.id);
+    }
   });
 });
 

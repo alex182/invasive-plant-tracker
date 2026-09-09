@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
 import { hashPassword } from "../lib/password";
-import { destroySessionsForUser, type AuthedRequest, type Role } from "../lib/auth";
+import { destroySessionsForUser, requireAdmin, requireAdminOrImpersonating, type AuthedRequest, type Role } from "../lib/auth";
 import { recordAudit } from "../lib/audit";
 
 export const usersRouter = Router();
@@ -26,12 +26,14 @@ function usernameTaken(username: string, excludeId?: string): boolean {
   return !!row;
 }
 
-usersRouter.get("/", (_req, res) => {
+// Listing is also allowed during impersonation, so an admin can pick a target user for the
+// bulk-copy action without having to stop impersonating first. Everything else stays admin-only.
+usersRouter.get("/", requireAdminOrImpersonating, (_req, res) => {
   const rows = db.prepare(`SELECT ${PUBLIC_COLUMNS} FROM user ORDER BY created_at ASC`).all();
   res.json(rows);
 });
 
-usersRouter.post("/", (req: AuthedRequest, res) => {
+usersRouter.post("/", requireAdmin, (req: AuthedRequest, res) => {
   const body = req.body ?? {};
   const { username, password, role, display_name } = body;
 
@@ -67,7 +69,7 @@ usersRouter.post("/", (req: AuthedRequest, res) => {
   res.status(201).json(row);
 });
 
-usersRouter.patch("/:id", (req: AuthedRequest, res) => {
+usersRouter.patch("/:id", requireAdmin, (req: AuthedRequest, res) => {
   const existing = db.prepare("SELECT * FROM user WHERE id = ?").get(req.params.id) as UserRow | undefined;
   if (!existing) {
     res.status(404).json({ error: "user not found" });
@@ -122,7 +124,7 @@ usersRouter.patch("/:id", (req: AuthedRequest, res) => {
   res.json(row);
 });
 
-usersRouter.post("/:id/reset-password", (req: AuthedRequest, res) => {
+usersRouter.post("/:id/reset-password", requireAdmin, (req: AuthedRequest, res) => {
   const existing = db.prepare("SELECT id FROM user WHERE id = ?").get(req.params.id) as { id: string } | undefined;
   if (!existing) {
     res.status(404).json({ error: "user not found" });

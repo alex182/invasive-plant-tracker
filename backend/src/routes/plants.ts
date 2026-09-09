@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { db } from "../db";
 import { upload, removeUploadedFile } from "../lib/uploads";
 import { insertPlantPhoto } from "./photos";
-import { requireAdmin, type AuthedRequest, type AuthUser } from "../lib/auth";
+import { requireAdmin, requireAdminOrImpersonating, type AuthedRequest, type AuthUser } from "../lib/auth";
 import { recordAudit } from "../lib/audit";
 
 export const plantsRouter = Router();
@@ -382,9 +382,13 @@ plantsRouter.post("/bulk-reassign", requireAdmin, (req: AuthedRequest, res) => {
 
 /**
  * Duplicate plants onto another user's account: each source plant is left untouched and a new,
- * independent plant row (own id, no treatments/photos) is created for the target owner. Admin only.
+ * independent plant row (own id, no treatments/photos) is created for the target owner.
+ *
+ * Admin only — except an admin impersonating another user may also use this, restricted to
+ * copying only that impersonated user's own plants, so an admin can hand someone's whole plant
+ * list to another user without first stopping impersonation.
  */
-plantsRouter.post("/bulk-copy", requireAdmin, (req: AuthedRequest, res) => {
+plantsRouter.post("/bulk-copy", requireAdminOrImpersonating, (req: AuthedRequest, res) => {
   const { plant_ids, owner_id } = req.body ?? {};
 
   if (!Array.isArray(plant_ids) || plant_ids.length === 0 || !plant_ids.every((id) => typeof id === "string")) {
@@ -397,13 +401,22 @@ plantsRouter.post("/bulk-copy", requireAdmin, (req: AuthedRequest, res) => {
     return;
   }
 
+  let sourceIds = plant_ids as string[];
+  if (req.user!.role !== "admin") {
+    // Impersonating a non-admin: only their own plants are eligible, regardless of what was sent.
+    const ownedIds = new Set(
+      (db.prepare("SELECT id FROM plant WHERE owner_id = ?").all(req.user!.id) as { id: string }[]).map((r) => r.id)
+    );
+    sourceIds = sourceIds.filter((id) => ownedIds.has(id));
+  }
+
   const insert = db.prepare(
     `INSERT INTO plant (id, species_id, latitude, longitude, gps_accuracy_m, status, method, notes, date_identified, date_started, date_removed, geometry, logged_by, owner_id, created_at, updated_at)
      VALUES (@id, @species_id, @latitude, @longitude, @gps_accuracy_m, @status, @method, @notes, @date_identified, @date_started, @date_removed, @geometry, @logged_by, @owner_id, @now, @now)`
   );
   const created: string[] = [];
   db.transaction(() => {
-    for (const sourceId of plant_ids as string[]) {
+    for (const sourceId of sourceIds) {
       const source = db.prepare("SELECT * FROM plant WHERE id = ?").get(sourceId) as PlantRow | undefined;
       if (!source) continue;
       const id = randomUUID();
