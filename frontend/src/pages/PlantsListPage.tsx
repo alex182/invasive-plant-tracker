@@ -43,6 +43,7 @@ export function PlantsListPage() {
   const [reassignTo, setReassignTo] = useState("");
   const [reassigning, setReassigning] = useState(false);
   const [reassignMessage, setReassignMessage] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [dupPanelOpen, setDupPanelOpen] = useState(false);
   const [dupLoading, setDupLoading] = useState(false);
@@ -113,9 +114,29 @@ export function PlantsListPage() {
     setSelected((prev) => (prev.size === ids.length ? new Set() : new Set(ids)));
   }
 
-  /** While impersonating (not truly admin), only the impersonated user's own plants are eligible. */
-  function canSelectForBulkCopy(p: Plant): boolean {
-    return isAdmin || p.owner_id === user?.id;
+  /** Rows the current user can act on in bulk: their own (or their org's) plants, or anything if admin. */
+  function canSelect(p: Plant): boolean {
+    return isAdmin || isMyPlant(p, user);
+  }
+
+  async function handleBulkDelete() {
+    // Checkboxes are only enabled for rows canSelect() allows, so `selected` is already safe to send;
+    // the backend also re-checks each id and skips any the caller can't delete.
+    if (selected.size === 0) return;
+    const n = selected.size;
+    if (!confirm(`Delete ${n} plant${n === 1 ? "" : "s"}? This cannot be undone.`)) return;
+    setDeleting(true);
+    setReassignMessage(null);
+    try {
+      const { deleted_count } = await api.plants.bulkDelete([...selected]);
+      setReassignMessage(`Deleted ${deleted_count} plant${deleted_count === 1 ? "" : "s"}.`);
+      setSelected(new Set());
+      await refetch();
+    } catch (err) {
+      setReassignMessage(err instanceof Error ? err.message : "Couldn't delete those plants.");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   async function handleBulkReassign(mode: "move" | "copy") {
@@ -182,9 +203,7 @@ export function PlantsListPage() {
     setDupDeleting(true);
     setDupMessage(null);
     try {
-      for (const id of dupSelected) {
-        await api.plants.remove(id);
-      }
+      await api.plants.bulkDelete([...dupSelected]);
       setDupMessage(`Deleted ${dupSelected.size} plant(s).`);
       setDupGroups((prev) =>
         prev
@@ -283,11 +302,9 @@ export function PlantsListPage() {
         <button type="button" className={styles.distanceButton} onClick={openDuplicatesPanel}>
           🧹 Remove duplicates
         </button>
-        {canBulkCopy && (
-          <button type="button" className={styles.distanceButton} onClick={toggleSelectMode}>
-            {selectMode ? "Cancel" : isAdmin ? "🔀 Reassign / copy" : "🔀 Copy to user"}
-          </button>
-        )}
+        <button type="button" className={styles.distanceButton} onClick={toggleSelectMode}>
+          {selectMode ? "Cancel" : "☑️ Select"}
+        </button>
       </div>
 
       {selectMode && (
@@ -296,33 +313,45 @@ export function PlantsListPage() {
             <span className={styles.note}>Only {user.display_name}'s own plants can be copied here.</span>
           )}
           <span>{selected.size} selected</span>
-          <select value={reassignTo} onChange={(e) => setReassignTo(e.target.value)}>
-            <option value="">Choose a user…</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.display_name}
-              </option>
-            ))}
-          </select>
-          {isAdmin && (
-            <button
-              type="button"
-              className={styles.distanceButton}
-              onClick={() => handleBulkReassign("move")}
-              disabled={selected.size === 0 || !reassignTo || reassigning}
-            >
-              {reassigning ? "Working…" : "Reassign"}
-            </button>
-          )}
           <button
             type="button"
             className={styles.distanceButton}
-            onClick={() => handleBulkReassign("copy")}
-            disabled={selected.size === 0 || !reassignTo || reassigning}
-            title="Duplicate the selected plants onto this user's account, leaving the originals untouched"
+            onClick={handleBulkDelete}
+            disabled={selected.size === 0 || deleting || reassigning}
           >
-            {reassigning ? "Working…" : "Copy to user"}
+            {deleting ? "Deleting…" : "🗑 Delete selected"}
           </button>
+          {canBulkCopy && (
+            <>
+              <select value={reassignTo} onChange={(e) => setReassignTo(e.target.value)}>
+                <option value="">Choose a user…</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.display_name}
+                  </option>
+                ))}
+              </select>
+              {isAdmin && (
+                <button
+                  type="button"
+                  className={styles.distanceButton}
+                  onClick={() => handleBulkReassign("move")}
+                  disabled={selected.size === 0 || !reassignTo || reassigning || deleting}
+                >
+                  {reassigning ? "Working…" : "Reassign"}
+                </button>
+              )}
+              <button
+                type="button"
+                className={styles.distanceButton}
+                onClick={() => handleBulkReassign("copy")}
+                disabled={selected.size === 0 || !reassignTo || reassigning || deleting}
+                title="Duplicate the selected plants onto this user's account, leaving the originals untouched"
+              >
+                {reassigning ? "Working…" : "Copy to user"}
+              </button>
+            </>
+          )}
           {reassignMessage && <span className={styles.note}>{reassignMessage}</span>}
         </div>
       )}
@@ -387,10 +416,10 @@ export function PlantsListPage() {
                       type="checkbox"
                       checked={
                         rows.length > 0 &&
-                        selected.size === rows.filter(canSelectForBulkCopy).length &&
+                        selected.size === rows.filter(canSelect).length &&
                         selected.size > 0
                       }
-                      onChange={() => toggleSelectAll(rows.filter(canSelectForBulkCopy).map((p) => p.id))}
+                      onChange={() => toggleSelectAll(rows.filter(canSelect).map((p) => p.id))}
                       aria-label="Select all"
                     />
                   </th>
@@ -413,7 +442,7 @@ export function PlantsListPage() {
                           type="checkbox"
                           checked={selected.has(p.id)}
                           onChange={() => toggleSelected(p.id)}
-                          disabled={!canSelectForBulkCopy(p)}
+                          disabled={!canSelect(p)}
                           aria-label={`Select ${sp?.common_name ?? "plant"}`}
                         />
                       </td>

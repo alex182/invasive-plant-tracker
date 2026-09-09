@@ -878,6 +878,45 @@ describe("organizations", () => {
     expect((await bobAgent.delete(`/api/plants/${plantId}`)).status).toBe(204);
   });
 
+  it("bulk-delete removes a caller's own and org-mates' plants, silently skips the rest", async () => {
+    const created = await orgAdmin.post("/api/organizations").send({ name: "Cleanup Crew" });
+    const orgId = created.body.id;
+    await orgAdmin.post(`/api/organizations/${orgId}/members`).send({ user_id: aliceId });
+    await orgAdmin.post(`/api/organizations/${orgId}/members`).send({ user_id: bobId });
+
+    const aliceAgent = supertest.agent(app);
+    await aliceAgent.post("/api/auth/login").send({ username: "org-alice", password: "org-alice-password" });
+    const bobAgent = supertest.agent(app);
+    await bobAgent.post("/api/auth/login").send({ username: "org-bob", password: "org-bob-password" });
+    const carolAgent = supertest.agent(app);
+    await carolAgent.post("/api/auth/login").send({ username: "org-carol", password: "org-carol-password" });
+
+    const mkPlant = (ag: ReturnType<typeof supertest.agent>, lng: number) =>
+      ag
+        .post("/api/plants")
+        .send({ species_id: speciesId, latitude: 39.2, longitude: lng, date_identified: "2026-08-20" })
+        .then((r) => r.body.id as string);
+
+    const aliceP = await mkPlant(aliceAgent, -94.21);
+    const bobP = await mkPlant(bobAgent, -94.22);
+    const carolP = await mkPlant(carolAgent, -94.23);
+
+    const bad = await aliceAgent.post("/api/plants/bulk-delete").send({ plant_ids: [] });
+    expect(bad.status).toBe(400);
+
+    // Alice deletes her own + Bob's (same org); Carol's plant and a bogus id are skipped.
+    const res = await aliceAgent
+      .post("/api/plants/bulk-delete")
+      .send({ plant_ids: [aliceP, bobP, carolP, "nope"] });
+    expect(res.status).toBe(200);
+    expect(res.body.deleted_count).toBe(2);
+    expect(res.body.deleted_ids.sort()).toEqual([aliceP, bobP].sort());
+
+    expect((await aliceAgent.get(`/api/plants/${aliceP}`)).status).toBe(404);
+    expect((await aliceAgent.get(`/api/plants/${bobP}`)).status).toBe(404);
+    expect((await carolAgent.get(`/api/plants/${carolP}`)).status).toBe(200);
+  });
+
   it("deleting an org clears membership but leaves plants owned", async () => {
     const created = await orgAdmin.post("/api/organizations").send({ name: "Temp Crew" });
     const orgId = created.body.id;

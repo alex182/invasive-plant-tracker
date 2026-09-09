@@ -456,6 +456,40 @@ plantsRouter.post("/bulk-copy", requireAdminOrImpersonating, (req: AuthedRequest
   res.status(201).json({ created_count: created.length, created_ids: created });
 });
 
+/**
+ * Delete many plants at once. Not admin-only: each id is checked with the same rule as a single
+ * delete (own plant, org-mate's plant, or admin), and ids the caller can't delete — or that don't
+ * exist — are silently skipped, so the response count says how many actually went.
+ */
+plantsRouter.post("/bulk-delete", (req: AuthedRequest, res) => {
+  const { plant_ids } = req.body ?? {};
+
+  if (!Array.isArray(plant_ids) || plant_ids.length === 0 || !plant_ids.every((id) => typeof id === "string")) {
+    res.status(400).json({ error: "plant_ids must be a non-empty array of strings" });
+    return;
+  }
+
+  const deleted: string[] = [];
+  const photoPaths: string[] = [];
+  db.transaction(() => {
+    for (const id of plant_ids as string[]) {
+      const existing = db.prepare("SELECT owner_id FROM plant WHERE id = ?").get(id) as
+        | { owner_id: string | null }
+        | undefined;
+      if (!existing || !canMutatePlant(req.user!, existing.owner_id)) continue;
+      const paths = db.prepare("SELECT path FROM plant_photo WHERE plant_id = ?").all(id) as { path: string }[];
+      db.prepare("DELETE FROM plant WHERE id = ?").run(id);
+      for (const { path } of paths) photoPaths.push(path);
+      deleted.push(id);
+    }
+  })();
+
+  // plant_photo rows cascade-delete inside the transaction; clean up the files they referenced.
+  for (const path of photoPaths) removeUploadedFile(path);
+  recordAudit(req, "plant.bulk_delete", { detail: `${deleted.length} plant(s)` });
+  res.json({ deleted_count: deleted.length, deleted_ids: deleted });
+});
+
 plantsRouter.delete("/:id", (req: AuthedRequest, res) => {
   const existing = db.prepare("SELECT owner_id FROM plant WHERE id = ?").get(req.params.id) as
     | { owner_id: string | null }

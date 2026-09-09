@@ -72,6 +72,11 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ plant_ids: plantIds, owner_id: ownerId }),
       }),
+    bulkDelete: (plantIds: string[]) =>
+      request<{ deleted_count: number; deleted_ids: string[] }>("/plants/bulk-delete", {
+        method: "POST",
+        body: JSON.stringify({ plant_ids: plantIds }),
+      }),
   },
   photos: {
     list: (plantId: string) => request<PlantPhoto[]>(`/plants/${plantId}/photos`),
