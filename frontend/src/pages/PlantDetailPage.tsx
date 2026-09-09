@@ -8,10 +8,11 @@ import { bearingLabel, formatDistance, haversineMeters, mapsDirectionsUrl } from
 import { useSpecies } from "../hooks/useSpecies";
 import { usePlantPhotos } from "../hooks/usePlantPhotos";
 import { useGeolocation, friendlyGeoError } from "../hooks/useGeolocation";
+import { useAuth } from "../context/AuthContext";
 import { STATUS_COLOR, STATUS_LABEL, STATUS_ORDER } from "../lib/status";
 import { ImageLightbox, type LightboxPhoto } from "../components/ImageLightbox";
 import { PlantPhotoGallery } from "../components/PlantPhotoGallery";
-import type { Plant, PlantStatus, Species, Treatment } from "../types";
+import type { Plant, PlantStatus, Species, Treatment, User } from "../types";
 import styles from "./PlantDetailPage.module.css";
 
 function addDaysISO(dateISO: string, days: number): string {
@@ -42,6 +43,9 @@ export function PlantDetailPage() {
   const navigate = useNavigate();
   const isPending = Boolean(id && isPendingId(id));
   const { species: allSpecies } = useSpecies();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const [users, setUsers] = useState<User[]>([]);
   const [plant, setPlant] = useState<Plant | null>(null);
   const [species, setSpecies] = useState<Species | null>(null);
   const [treatments, setTreatments] = useState<Treatment[]>([]);
@@ -62,6 +66,7 @@ export function PlantDetailPage() {
   const [eDateIdentified, setEDateIdentified] = useState("");
   const [eDateStarted, setEDateStarted] = useState("");
   const [eDateRemoved, setEDateRemoved] = useState("");
+  const [eOwnerId, setEOwnerId] = useState("");
 
   const [tDate, setTDate] = useState(todayISO());
   const [tMethod, setTMethod] = useState("");
@@ -99,6 +104,10 @@ export function PlantDetailPage() {
   }, [load]);
 
   useEffect(() => {
+    if (isAdmin) api.users.list().then(setUsers);
+  }, [isAdmin]);
+
+  useEffect(() => {
     if (isPending && plant) {
       setSpecies(allSpecies.find((s) => s.id === plant.species_id) ?? null);
     }
@@ -125,6 +134,7 @@ export function PlantDetailPage() {
     setEDateIdentified(plant.date_identified);
     setEDateStarted(plant.date_started ?? "");
     setEDateRemoved(plant.date_removed ?? "");
+    setEOwnerId(plant.owner_id ?? "");
     setEditError(null);
     setEditing(true);
   }
@@ -154,6 +164,7 @@ export function PlantDetailPage() {
         date_identified: eDateIdentified,
         date_started: eDateStarted || null,
         date_removed: eDateRemoved || null,
+        ...(isAdmin && eOwnerId ? { owner_id: eOwnerId } : {}),
       });
       setPlant(updated);
       if (!species || updated.species_id !== species.id) {
@@ -431,6 +442,18 @@ export function PlantDetailPage() {
               Date removed
               <input type="date" value={eDateRemoved} onChange={(e) => setEDateRemoved(e.target.value)} />
             </label>
+            {isAdmin && (
+              <label>
+                Owner
+                <select value={eOwnerId} onChange={(e) => setEOwnerId(e.target.value)}>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.display_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {editError && <div className={styles.editError}>{editError}</div>}
             <div className={styles.actionRow}>
               <button onClick={handleSaveEdit} disabled={savingEdit}>
