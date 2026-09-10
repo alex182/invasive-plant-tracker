@@ -82,6 +82,21 @@ export function PlantFormPage() {
   const [identifyResults, setIdentifyResults] = useState<IdentifyResult[] | null>(null);
   const [identifyError, setIdentifyError] = useState<string | null>(null);
   const identifyInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  // Photo attached at creation time, saved as the plant's "Before" progress photo.
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoFromIdentify, setPhotoFromIdentify] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!photoFile) {
+      setPhotoPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(photoFile);
+    setPhotoPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [photoFile]);
 
   useEffect(() => {
     if (!isEdit || !id) return;
@@ -140,6 +155,11 @@ export function PlantFormPage() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    // Reuse the identification photo as the plant's "Before" photo unless one's already chosen.
+    if (!photoFile) {
+      setPhotoFile(file);
+      setPhotoFromIdentify(true);
+    }
     setIdentifying(true);
     setIdentifyError(null);
     setIdentifyResults(null);
@@ -150,6 +170,15 @@ export function PlantFormPage() {
       setIdentifyError(err instanceof Error ? err.message : "Couldn't identify this photo.");
     } finally {
       setIdentifying(false);
+    }
+  }
+
+  function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) {
+      setPhotoFile(file);
+      setPhotoFromIdentify(false);
     }
   }
 
@@ -191,6 +220,13 @@ export function PlantFormPage() {
         navigate(`/plants/${id}`);
       } else {
         const created = await api.plants.create(payload);
+        if (photoFile) {
+          try {
+            await api.photos.upload(created.id, photoFile, { phase: "before", taken_on: dateIdentified });
+          } catch {
+            // The plant saved; a failed photo upload shouldn't block navigation to it.
+          }
+        }
         navigate(`/plants/${created.id}`);
       }
     } catch (err) {
@@ -271,6 +307,44 @@ export function PlantFormPage() {
           </div>
         )}
       </div>
+
+      {!isEdit && (
+        <div className={styles.field}>
+          <label>Photo (optional — saved as the “Before” photo)</label>
+          {photoPreview && <img src={photoPreview} alt="Selected plant" className={styles.photoPreview} />}
+          <button
+            type="button"
+            className={styles.gpsButton}
+            onClick={() => photoInputRef.current?.click()}
+          >
+            📷 {photoFile ? "Replace photo" : "Add a photo"}
+          </button>
+          {photoFile && (
+            <button
+              type="button"
+              className={styles.gpsButton}
+              onClick={() => {
+                setPhotoFile(null);
+                setPhotoFromIdentify(false);
+              }}
+            >
+              Remove photo
+            </button>
+          )}
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            style={{ display: "none" }}
+            onChange={handlePhotoSelect}
+          />
+          <div className={styles.gpsNote}>
+            {photoFromIdentify ? "Using your identification photo. " : ""}
+            Added once the plant is saved — needs a connection.
+          </div>
+        </div>
+      )}
 
       {geometry ? (
         <div className={styles.field}>

@@ -13,6 +13,8 @@ export interface AuthUser {
   must_change_password: boolean;
   /** The organization this user belongs to, or null. Members of the same org share plants. */
   org_id: string | null;
+  /** Display name of that organization, or null when the user isn't in one. */
+  org_name: string | null;
 }
 
 export interface ImpersonatorInfo {
@@ -53,6 +55,9 @@ export function cookieOptions(): { httpOnly: true; sameSite: "lax"; secure: bool
 }
 
 export function toAuthUser(row: UserRow): AuthUser {
+  const org = row.org_id
+    ? (db.prepare("SELECT name FROM organization WHERE id = ?").get(row.org_id) as { name: string } | undefined)
+    : undefined;
   return {
     id: row.id,
     username: row.username,
@@ -60,6 +65,7 @@ export function toAuthUser(row: UserRow): AuthUser {
     display_name: row.display_name,
     must_change_password: Boolean(row.must_change_password),
     org_id: row.org_id ?? null,
+    org_name: org?.name ?? null,
   };
 }
 

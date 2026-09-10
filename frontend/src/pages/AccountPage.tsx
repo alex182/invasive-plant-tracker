@@ -42,6 +42,10 @@ export function AccountPage() {
         <p className={styles.note}>
           Signed in as <strong>{user.display_name}</strong> (@{user.username}) · {user.role}
         </p>
+        <p className={styles.note}>
+          Organization:{" "}
+          {user.org_name ? <strong>{user.org_name}</strong> : "not part of an organization"}
+        </p>
       </div>
 
       <div className={styles.section}>
