@@ -869,6 +869,12 @@ describe("organizations", () => {
     const users = (await orgAdmin.get("/api/users")).body;
     expect(users.find((u: { id: string }) => u.id === aliceId).org_id).toBe(orgId);
 
+    const aliceMe = supertest.agent(app);
+    await aliceMe.post("/api/auth/login").send({ username: "org-alice", password: "org-alice-password" });
+    const aliceSession = (await aliceMe.get("/api/auth/me")).body;
+    expect(aliceSession.org_id).toBe(orgId);
+    expect(aliceSession.org_name).toBe("Prairie Crew");
+
     const dup = await orgAdmin.post(`/api/organizations/${orgId}/members`).send({ user_id: aliceId });
     expect(dup.status).toBe(409);
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { MapContainer, Polygon, TileLayer, useMap } from "react-leaflet";
+import { CircleMarker, MapContainer, Polygon, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { api } from "../lib/api";
 import { isPendingId, pendingPlants, queueTreatmentCreate } from "../lib/offlineQueue";
@@ -81,6 +81,7 @@ export function PlantDetailPage() {
   const [uploading, setUploading] = useState(0);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [newPhotoPhase, setNewPhotoPhase] = useState<PhotoPhase>("during");
+  const [newPhotoNote, setNewPhotoNote] = useState("");
   const { getPosition } = useGeolocation();
   const [distance, setDistance] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
@@ -192,11 +193,13 @@ export function PlantDetailPage() {
         await api.photos.upload(id, file, {
           taken_on: todayISO(),
           treatment_id: treatmentId ?? null,
-          // Stage only applies to the plant's general progress timeline, not treatment-specific shots.
+          // Stage and notes only apply to the plant's general progress timeline, not treatment-specific shots.
           phase: treatmentId ? null : newPhotoPhase,
+          caption: treatmentId ? undefined : newPhotoNote.trim() || undefined,
         });
         setUploading((n) => n - 1);
       }
+      if (!treatmentId) setNewPhotoNote("");
       await reloadPhotos();
       const fresh = await api.plants.get(id);
       setPlant(fresh);
@@ -368,11 +371,11 @@ export function PlantDetailPage() {
             </button>
           )}
         </div>
-        {plant.geometry && plant.geometry.length >= 3 && (
-          <div style={{ width: "100%", height: 160, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border)", marginBottom: 10 }}>
+        {!isPending && (
+          <div style={{ width: "100%", height: 180, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border)", marginBottom: 10 }}>
             <MapContainer
-              center={plant.geometry[0]}
-              zoom={16}
+              center={[plant.latitude, plant.longitude]}
+              zoom={18}
               dragging={false}
               zoomControl={false}
               scrollWheelZoom={false}
@@ -381,8 +384,18 @@ export function PlantDetailPage() {
               style={{ width: "100%", height: "100%" }}
             >
               <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              <Polygon positions={plant.geometry} pathOptions={{ color: STATUS_COLOR[plant.status], fillOpacity: 0.3 }} />
-              <FitToPolygon positions={plant.geometry} />
+              {plant.geometry && plant.geometry.length >= 3 ? (
+                <>
+                  <Polygon positions={plant.geometry} pathOptions={{ color: STATUS_COLOR[plant.status], fillOpacity: 0.3 }} />
+                  <FitToPolygon positions={plant.geometry} />
+                </>
+              ) : (
+                <CircleMarker
+                  center={[plant.latitude, plant.longitude]}
+                  radius={9}
+                  pathOptions={{ color: STATUS_COLOR[plant.status], fillColor: STATUS_COLOR[plant.status], fillOpacity: 0.5 }}
+                />
+              )}
             </MapContainer>
           </div>
         )}
@@ -543,7 +556,7 @@ export function PlantDetailPage() {
           />
           {photoError && <div className={styles.editError}>{photoError}</div>}
           {canMutate && (
-            <div className={styles.actionRow} style={{ marginTop: 10 }}>
+            <div className={styles.actionRow} style={{ marginTop: 10, flexWrap: "wrap" }}>
               <select
                 value={newPhotoPhase}
                 onChange={(e) => setNewPhotoPhase(e.target.value as PhotoPhase)}
@@ -554,6 +567,14 @@ export function PlantDetailPage() {
                 <option value="during">During</option>
                 <option value="after">After</option>
               </select>
+              <input
+                type="text"
+                value={newPhotoNote}
+                onChange={(e) => setNewPhotoNote(e.target.value)}
+                placeholder="Note (optional)"
+                disabled={uploading > 0}
+                aria-label="Note for new photos"
+              />
               <label>
                 📷 {uploading > 0 ? `Uploading ${uploading}…` : "Add photos"}
                 <input

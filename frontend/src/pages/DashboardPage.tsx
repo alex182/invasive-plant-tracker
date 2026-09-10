@@ -5,7 +5,10 @@ import { useSpecies } from "../hooks/useSpecies";
 import { useTreatments } from "../hooks/useTreatments";
 import { api } from "../lib/api";
 import { formatArea, polygonAreaSqMeters } from "../lib/geo";
+import { isPendingId } from "../lib/offlineQueue";
+import { isMyPlant } from "../lib/ownership";
 import { STATUS_COLOR, STATUS_LABEL, STATUS_ORDER } from "../lib/status";
+import { useAuth } from "../context/AuthContext";
 import type { Species } from "../types";
 import styles from "./DashboardPage.module.css";
 
@@ -18,14 +21,26 @@ function monthKey(d: Date): string {
 }
 
 export function DashboardPage() {
-  const { plants, loading: plantsLoading } = usePlants();
+  const { plants: allPlants, loading: plantsLoading } = usePlants();
   const { species } = useSpecies();
-  const { treatments } = useTreatments();
+  const { treatments: allTreatments } = useTreatments();
+  const { user } = useAuth();
   const [seasonSpecies, setSeasonSpecies] = useState<Species[]>([]);
 
   useEffect(() => {
     api.species.seasonNow().then(setSeasonSpecies).catch(() => setSeasonSpecies([]));
   }, []);
+
+  // Scope every stat on this page to the current user's own plants (and, if they're in an
+  // organization, their whole org's plants) — plus anything they've created offline.
+  const plants = useMemo(
+    () => allPlants.filter((p) => isPendingId(p.id) || isMyPlant(p, user)),
+    [allPlants, user]
+  );
+  const treatments = useMemo(() => {
+    const plantIds = new Set(plants.map((p) => p.id));
+    return allTreatments.filter((t) => plantIds.has(t.plant_id));
+  }, [allTreatments, plants]);
 
   const speciesById = useMemo(() => new Map(species.map((s) => [s.id, s])), [species]);
 

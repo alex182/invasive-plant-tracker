@@ -5,7 +5,7 @@ A field-use PWA for tracking and coordinating invasive plant removal. Drop a pin
 ## Features
 
 - **Map** — point plants and polygon "patches" rendered together, clustered markers, status/species filters, dark/light theme
-- **Add a plant** — drop a pin at your GPS location, or long-press (right-click on desktop) the map to place one manually
+- **Add a plant** — drop a pin at your GPS location, or long-press (right-click on desktop) the map to place one manually; optionally attach a photo, saved as the plant's "Before" progress shot (a photo used for species identification is carried over automatically)
 - **Draw a patch** — trace a patch outline by tapping vertices on the map, or walk its edge live with GPS ("walk mode": auto-drops a point every ~3m, with pause/resume, undo, and a live accuracy circle)
 - **Locate me** — on-demand button that drops a "you are here" marker and recenters the map, without constantly polling GPS in the background
 - **Photo species suggestions** — snap a photo on the add-plant form to get species suggestions from Pl@ntNet, shown as tappable chips matched against your tracked species list (optional, needs an API key; suggestions only — you still confirm the species yourself)
@@ -13,12 +13,13 @@ A field-use PWA for tracking and coordinating invasive plant removal. Drop a pin
 - **Treatments** — log removal/herbicide events per plant with auto-suggested follow-up dates
 - **Status lifecycle** — Planned → In progress → Monitoring → Removed; a one-tap "Found regrowth" on a removed or monitored plant reopens it, logs a "Regrowth found" treatment with a fresh follow-up, and clears the removal date
 - **Calendar** — upcoming and overdue follow-ups
-- **Photo timeline** — attach multiple dated photos to a plant, each tagged with a removal stage (before / during / after) so the gallery groups into a progress timeline; photos can also be tied to a specific treatment; edit captions, dates, and stage, view full-screen; the newest photo is the plant's thumbnail
+- **Photo timeline** — attach multiple dated photos to a plant, each tagged with a removal stage (before / during / after) so the gallery groups into a progress timeline, with an optional note per photo; photos can also be tied to a specific treatment; edit captions, dates, and stage, view full-screen; the newest photo is the plant's thumbnail
+- **Plant detail map** — a zoomed-in OpenStreetMap view of every plant in its Details section, a marker for a single plant or the traced outline for a patch
 - **Navigate & nearby** — open a plant's coordinates in the phone's maps app, see distance + bearing from your current location, or sort the Plants list by proximity for a field work queue
-- **Stats dashboard** — removal rate, status and per-species breakdowns, total mapped patch area (ha / acres), a 12-month treatment chart, and overdue follow-up counts
+- **Stats dashboard** — removal rate, status and per-species breakdowns, total mapped patch area (ha / acres), a 12-month treatment chart, and overdue follow-up counts, all scoped to your own plants (or your whole organization's)
 - **Attribution** — set your name once (stored on the device); it's recorded as "logged by" on every plant and treatment you add, so a crew sharing one instance can see who recorded what
 - **Accounts & roles** — username/password login with `admin` and `user` roles; each plant is owned by whoever added it, and only its owner (or an admin) can edit or delete it
-- **Organizations** — an admin can group users into an organization from **Settings → Organizations**; org members share every plant the org owns (any member can view, edit, and delete them) and the map's "my plants" filter widens to show the whole org's plants
+- **Organizations** — an admin can group users into an organization from **Settings → Organizations**; org members share every plant the org owns (any member can view, edit, and delete them) and the map's "my plants" filter widens to show the whole org's plants; your current organization is shown on the **Account** page
 - **Offline queue** — new plants/treatments created while offline are queued in the browser and synced automatically once back online (photo uploads and "Found regrowth" need a connection)
 - **Export** — CSV and GeoJSON (patches export as closed GeoJSON polygons, points as GeoJSON points; both include `logged_by` and `photo_count`)
 - **Installable PWA** — add to home screen, works offline for previously loaded data

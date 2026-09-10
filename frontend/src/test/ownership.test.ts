@@ -34,6 +34,7 @@ function user(overrides: Partial<SessionUser>): SessionUser {
     display_name: "U1",
     must_change_password: false,
     org_id: null,
+    org_name: null,
     impersonating: false,
     real_admin: null,
     ...overrides,

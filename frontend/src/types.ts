@@ -147,6 +147,8 @@ export interface SessionUser {
   must_change_password: boolean;
   /** The organization this user belongs to, or null. */
   org_id: string | null;
+  /** Display name of that organization, or null. */
+  org_name: string | null;
   impersonating: boolean;
   real_admin: Impersonator | null;
 }
