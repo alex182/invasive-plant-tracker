@@ -19,6 +19,8 @@
   align-items: center;
   gap: 8px;
   padding: 16px;
+  /* Let the component handle horizontal swipes without the browser hijacking them (e.g. back-swipe). */
+  touch-action: pan-y;
 }
 
 .image {

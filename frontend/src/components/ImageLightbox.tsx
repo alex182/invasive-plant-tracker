@@ -1,5 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import styles from "./ImageLightbox.module.css";
+
+/** Minimum horizontal travel (px) for a touch drag to count as a swipe. */
+const SWIPE_THRESHOLD = 50;
 
 export interface LightboxPhoto {
   url: string;
@@ -21,6 +24,25 @@ export function ImageLightbox({
   onNavigate: (index: number) => void;
 }) {
   const photo = photos[index];
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+
+  function handleTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0];
+    touchStart.current = { x: t.clientX, y: t.clientY };
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    // Ignore short drags and mostly-vertical ones (those are scrolls, not swipes).
+    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) <= Math.abs(dy)) return;
+    if (dx < 0 && index < photos.length - 1) onNavigate(index + 1);
+    else if (dx > 0 && index > 0) onNavigate(index - 1);
+  }
 
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
@@ -72,8 +94,13 @@ export function ImageLightbox({
         </button>
       )}
 
-      <figure className={styles.figure} onClick={(e) => e.stopPropagation()}>
-        <img className={styles.image} src={photo.url} alt={photo.alt} />
+      <figure
+        className={styles.figure}
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        <img className={styles.image} src={photo.url} alt={photo.alt} draggable={false} />
         {(photo.caption || photo.attribution) && (
           <figcaption className={styles.caption}>
             {photo.caption && <span className={styles.captionText}>{photo.caption}</span>}
