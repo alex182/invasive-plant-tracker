@@ -151,6 +151,15 @@ export function PlantFormPage() {
     }
   }
 
+  useEffect(() => {
+    // Only for a fresh, blank add — not editing, and not arriving with a location already handed
+    // off from drop-pin/long-press/patch drawing (those already carry their own lat/lng).
+    if (isEdit || searchParams.get("lat") || searchParams.get("lng")) return;
+    handleUseCurrentLocation();
+    // Once, right when the blank add form opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function handleIdentifyPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
