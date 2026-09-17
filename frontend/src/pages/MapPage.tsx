@@ -276,9 +276,10 @@ export function MapPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<Set<PlantStatus>>(new Set(STATUS_ORDER));
   const [speciesFilter, setSpeciesFilter] = useState<Set<string> | null>(null);
-  // Simplified accounts default to seeing everyone's plants — they're the community view here,
-  // not a personal one, and starting on "mine only" would show an all-but-empty map at first.
-  const [mineOnly, setMineOnly] = useState(!isSimplified);
+  // "Mine only" defaults on for everyone, simplified accounts included — otherwise an org-mate's
+  // unrelated plant sitting near your own reads as your plant showing up twice. Still a plain
+  // checkbox in the filter panel below, so it can be toggled off to see the whole org/community.
+  const [mineOnly, setMineOnly] = useState(true);
   const [hint, setHint] = useState<string | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
