@@ -92,6 +92,12 @@ export function SimplifiedAddPlantPage() {
     }
   }
 
+  useEffect(() => {
+    // Grab the location right away — one less tap for the audience this screen is built for.
+    handleUseCurrentLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function resetForAnother() {
     setSpeciesId(species[0]?.id ?? "");
     setLatitude(null);
@@ -102,6 +108,7 @@ export function SimplifiedAddPlantPage() {
     setPhotoFile(null);
     setError(null);
     setSaved(false);
+    handleUseCurrentLocation();
   }
 
   async function handleSubmit(e: React.FormEvent) {
