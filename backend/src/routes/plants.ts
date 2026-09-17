@@ -3,7 +3,13 @@ import { randomUUID } from "node:crypto";
 import { db } from "../db";
 import { upload, removeUploadedFile } from "../lib/uploads";
 import { insertPlantPhoto } from "./photos";
-import { canMutatePlant, requireAdmin, requireAdminOrImpersonating, type AuthedRequest } from "../lib/auth";
+import {
+  canMutatePlant,
+  requireAdmin,
+  requireAdminOrImpersonating,
+  requireNotSimplified,
+  type AuthedRequest,
+} from "../lib/auth";
 import { recordAudit } from "../lib/audit";
 
 export const plantsRouter = Router();
@@ -141,6 +147,8 @@ function findDuplicateGroups(plants: PlantRow[]): PlantRow[][] {
   return [...clusters.values()].filter((group) => group.length >= 2);
 }
 
+// Listing stays open to simplified accounts — they can see plants on the map, just not browse
+// into a plant's own detail page or act on anything (that's still requireNotSimplified below).
 plantsRouter.get("/", (req, res) => {
   const { status, species_id } = req.query;
   const clauses: string[] = [];
@@ -173,7 +181,7 @@ plantsRouter.get("/", (req, res) => {
  * Groups of the current user's own plants that are the same species and within
  * DUPLICATE_DISTANCE_M of each other — likely accidental double-entries.
  */
-plantsRouter.get("/duplicates", (req: AuthedRequest, res) => {
+plantsRouter.get("/duplicates", requireNotSimplified, (req: AuthedRequest, res) => {
   const rows = db
     .prepare("SELECT * FROM plant WHERE owner_id = ? ORDER BY created_at ASC")
     .all(req.user!.id) as PlantRow[];
@@ -187,7 +195,7 @@ plantsRouter.get("/duplicates", (req: AuthedRequest, res) => {
   res.json({ groups });
 });
 
-plantsRouter.get("/:id", (req, res) => {
+plantsRouter.get("/:id", requireNotSimplified, (req, res) => {
   const row = db.prepare("SELECT * FROM plant WHERE id = ?").get(req.params.id) as PlantRow | undefined;
   if (!row) {
     res.status(404).json({ error: "plant not found" });
@@ -263,7 +271,7 @@ plantsRouter.post("/", (req: AuthedRequest, res) => {
   res.status(201).json(serialize(row));
 });
 
-plantsRouter.patch("/:id", (req: AuthedRequest, res) => {
+plantsRouter.patch("/:id", requireNotSimplified, (req: AuthedRequest, res) => {
   const existing = db.prepare("SELECT * FROM plant WHERE id = ?").get(req.params.id) as PlantRow | undefined;
   if (!existing) {
     res.status(404).json({ error: "plant not found" });
@@ -461,7 +469,7 @@ plantsRouter.post("/bulk-copy", requireAdminOrImpersonating, (req: AuthedRequest
  * delete (own plant, org-mate's plant, or admin), and ids the caller can't delete — or that don't
  * exist — are silently skipped, so the response count says how many actually went.
  */
-plantsRouter.post("/bulk-delete", (req: AuthedRequest, res) => {
+plantsRouter.post("/bulk-delete", requireNotSimplified, (req: AuthedRequest, res) => {
   const { plant_ids } = req.body ?? {};
 
   if (!Array.isArray(plant_ids) || plant_ids.length === 0 || !plant_ids.every((id) => typeof id === "string")) {
@@ -490,7 +498,7 @@ plantsRouter.post("/bulk-delete", (req: AuthedRequest, res) => {
   res.json({ deleted_count: deleted.length, deleted_ids: deleted });
 });
 
-plantsRouter.delete("/:id", (req: AuthedRequest, res) => {
+plantsRouter.delete("/:id", requireNotSimplified, (req: AuthedRequest, res) => {
   const existing = db.prepare("SELECT owner_id FROM plant WHERE id = ?").get(req.params.id) as
     | { owner_id: string | null }
     | undefined;
@@ -517,7 +525,7 @@ plantsRouter.delete("/:id", (req: AuthedRequest, res) => {
  * Reopen a plant when regrowth is spotted: logs a "Regrowth found" treatment with a fresh
  * follow-up, flips status back to in-progress, and clears the removal date.
  */
-plantsRouter.post("/:id/regrowth", (req: AuthedRequest, res) => {
+plantsRouter.post("/:id/regrowth", requireNotSimplified, (req: AuthedRequest, res) => {
   const existing = db.prepare("SELECT * FROM plant WHERE id = ?").get(req.params.id) as PlantRow | undefined;
   if (!existing) {
     res.status(404).json({ error: "plant not found" });
@@ -554,7 +562,7 @@ plantsRouter.post("/:id/regrowth", (req: AuthedRequest, res) => {
   res.status(201).json({ plant: serialize(plant), treatment });
 });
 
-plantsRouter.post("/:id/photo", upload.single("photo"), (req: AuthedRequest, res) => {
+plantsRouter.post("/:id/photo", requireNotSimplified, upload.single("photo"), (req: AuthedRequest, res) => {
   const existing = db.prepare("SELECT * FROM plant WHERE id = ?").get(req.params.id) as PlantRow | undefined;
   if (!existing) {
     res.status(404).json({ error: "plant not found" });

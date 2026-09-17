@@ -6,6 +6,7 @@ import {
   createSession,
   destroySession,
   destroySessionsForUser,
+  redeemQrLoginToken,
   requireAdmin,
   requireAuth,
   SESSION_COOKIE,
@@ -53,6 +54,30 @@ authRouter.post("/login", (req: AuthedRequest, res) => {
   req.user = toAuthUser(row);
   recordAudit(req, "auth.login");
   res.json(withImpersonation(req.user, null));
+});
+
+/**
+ * Exchanges a one-time QR login token (see POST /users/:id/qr-login-token) for the plain-text
+ * username/password it was minted for. This doesn't start a session by itself — the frontend
+ * fills them into the normal login form and submits that, so it's a real sign-in the browser can
+ * offer to remember, not a hidden session swap.
+ */
+authRouter.post("/login/qr", (req: AuthedRequest, res) => {
+  const { token } = req.body ?? {};
+  if (typeof token !== "string" || !token) {
+    res.status(400).json({ error: "token is required" });
+    return;
+  }
+
+  const credentials = redeemQrLoginToken(token);
+  if (!credentials) {
+    recordAuditUnauthenticated("auth.login_qr_failed", null, null);
+    res.status(401).json({ error: "this QR code has expired or already been used — ask your admin for a new one" });
+    return;
+  }
+
+  recordAuditUnauthenticated("auth.login_qr_revealed", null, credentials.username);
+  res.json(credentials);
 });
 
 authRouter.post("/logout", requireAuth, (req: AuthedRequest, res) => {

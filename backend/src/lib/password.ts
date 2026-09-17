@@ -9,6 +9,11 @@ export function hashPassword(plain: string): string {
   return `scrypt$${N}$${salt.toString("hex")}$${hash.toString("hex")}`;
 }
 
+/** A random password for admin-issued temporary credentials (new user, reset, QR login). */
+export function generateTempPassword(): string {
+  return randomBytes(9).toString("base64url");
+}
+
 export function verifyPassword(plain: string, stored: string): boolean {
   const parts = stored.split("$");
   if (parts.length !== 4 || parts[0] !== "scrypt") return false;

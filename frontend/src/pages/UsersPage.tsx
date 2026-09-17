@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { QrLoginModal } from "../components/QrLoginModal";
 import type { Role, User } from "../types";
 import styles from "./UsersPage.module.css";
 
@@ -24,6 +25,9 @@ export function UsersPage() {
   const [createdMessage, setCreatedMessage] = useState<string | null>(null);
 
   const [rowMessage, setRowMessage] = useState<{ id: string; text: string } | null>(null);
+  const [qrUser, setQrUser] = useState<User | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function loadUsers() {
     return api.users.list().then(setUsers);
@@ -70,6 +74,39 @@ export function UsersPage() {
     setRowMessage({ id: user.id, text: `New temporary password: ${newPassword}` });
   }
 
+  async function handleDelete(user: User) {
+    if (
+      !confirm(
+        `Permanently delete "${user.username}"? This can't be undone — unlike deactivating, there's no way back. ` +
+          "Any plants they logged are kept but become unowned."
+      )
+    ) {
+      return;
+    }
+    setDeleting(user.id);
+    setDeleteError(null);
+    try {
+      await api.users.remove(user.id);
+      setUsers((prev) => prev.filter((u) => u.id !== user.id));
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Couldn't delete that user.");
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  function handleShowQrLogin(user: User) {
+    if (
+      !confirm(
+        `Generate a login QR code for "${user.username}"? This resets their password to a new one and signs out ` +
+          "their other sessions, same as a password reset."
+      )
+    ) {
+      return;
+    }
+    setQrUser(user);
+  }
+
   async function handleImpersonate(user: User) {
     setImpersonating(user.id);
     setImpersonateError(null);
@@ -92,7 +129,9 @@ export function UsersPage() {
         <h2>New user</h2>
         <p className={styles.note}>
           Set a temporary password and share it with them directly — there's no email invite. They can't reset
-          it themselves; come back here if they need a new one.
+          it themselves; come back here if they need a new one. "Simplified" is a stripped-down account for
+          kids/non-technical users — just a read-only map and an identify-and-add-a-plant screen, with no list,
+          editing, or way to revisit what they've added.
         </p>
         <form className={styles.form} onSubmit={handleCreate}>
           <div className={styles.row}>
@@ -122,6 +161,7 @@ export function UsersPage() {
               <label htmlFor="role">Role</label>
               <select id="role" value={role} onChange={(e) => setRole(e.target.value as Role)}>
                 <option value="user">User</option>
+                <option value="simplified">Simplified (identify + add only)</option>
                 <option value="admin">Admin</option>
               </select>
             </div>
@@ -152,8 +192,11 @@ export function UsersPage() {
         <p className={styles.note}>
           Impersonate a user to see the app exactly as they do. You'll act as them everywhere — including losing
           admin access if they're not one — until you stop impersonating from the banner at the top of the app.
+          Or use "Login QR code" to reset their password and hand it to a phone or tablet by scanning a code — it
+          opens their login page pre-filled, ready to submit, no typing required.
         </p>
         {impersonateError && <div className={styles.error}>{impersonateError}</div>}
+        {deleteError && <div className={styles.error}>{deleteError}</div>}
         <div className={styles.list}>
           {users.map((u) => (
             <div key={u.id} className={styles.userRow}>
@@ -167,6 +210,7 @@ export function UsersPage() {
               </div>
               <select value={u.role} onChange={(e) => handleRoleChange(u, e.target.value as Role)}>
                 <option value="user">User</option>
+                <option value="simplified">Simplified</option>
                 <option value="admin">Admin</option>
               </select>
               {u.id !== currentUser?.id && u.active && (
@@ -179,16 +223,33 @@ export function UsersPage() {
                   {impersonating === u.id ? "Switching…" : "Impersonate"}
                 </button>
               )}
+              {u.active && (
+                <button type="button" className={styles.smallButton} onClick={() => handleShowQrLogin(u)}>
+                  Login QR code
+                </button>
+              )}
               <button type="button" className={styles.smallButton} onClick={() => handleResetPassword(u)}>
                 Reset password
               </button>
               <button type="button" className={styles.smallButton} onClick={() => handleToggleActive(u)}>
                 {u.active ? "Deactivate" : "Reactivate"}
               </button>
+              {u.id !== currentUser?.id && (
+                <button
+                  type="button"
+                  className={styles.dangerButton}
+                  onClick={() => handleDelete(u)}
+                  disabled={deleting === u.id}
+                >
+                  {deleting === u.id ? "Deleting…" : "Delete"}
+                </button>
+              )}
             </div>
           ))}
         </div>
       </div>
+
+      {qrUser && <QrLoginModal user={qrUser} onClose={() => setQrUser(null)} />}
     </div>
   );
 }
