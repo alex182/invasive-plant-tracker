@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
+import { offerToSaveCredential } from "../lib/credentials";
 import type { SessionUser } from "../types";
 
 interface AuthContextValue {
@@ -33,6 +34,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function login(username: string, password: string) {
     setUser(await api.auth.login(username, password));
+    // Fire-and-forget: our login submits via fetch, not a native form POST, which many browsers'
+    // save-password heuristics don't reliably pick up on — this nudges them directly instead.
+    void offerToSaveCredential(username, password);
   }
 
   async function logout() {
@@ -52,7 +56,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function changePassword(currentPassword: string, newPassword: string) {
-    setUser(await api.auth.changePassword(currentPassword, newPassword));
+    const updated = await api.auth.changePassword(currentPassword, newPassword);
+    setUser(updated);
+    void offerToSaveCredential(updated.username, newPassword);
   }
 
   return (

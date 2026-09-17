@@ -3,7 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import styles from "./LoginPage.module.css";
 
 export function ChangePasswordPage() {
-  const { changePassword } = useAuth();
+  const { user, changePassword } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -33,10 +33,14 @@ export function ChangePasswordPage() {
         <h1 className={styles.title}>Set a new password</h1>
         <p className={styles.subtitle}>You're using a temporary password. Choose a new one to continue.</p>
         <form className={styles.form} onSubmit={handleSubmit}>
+          {/* Hidden but present in the DOM so the browser's password manager can associate the new
+              password below with this account — without it, some browsers save a passwordless entry. */}
+          <input type="text" name="username" autoComplete="username" value={user?.username ?? ""} readOnly hidden />
           <div className={styles.field}>
             <label htmlFor="currentPassword">Temporary password</label>
             <input
               id="currentPassword"
+              name="currentPassword"
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
@@ -49,6 +53,7 @@ export function ChangePasswordPage() {
             <label htmlFor="newPassword">New password</label>
             <input
               id="newPassword"
+              name="newPassword"
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
@@ -61,6 +66,7 @@ export function ChangePasswordPage() {
             <label htmlFor="confirmPassword">Confirm new password</label>
             <input
               id="confirmPassword"
+              name="confirmPassword"
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}

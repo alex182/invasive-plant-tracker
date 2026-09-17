@@ -103,7 +103,8 @@ export interface IdentifyResult {
   score: number;
 }
 
-export type Role = "admin" | "user";
+/** "simplified" can only identify + add a plant — no editing, no map/list/calendar, nothing to revisit. */
+export type Role = "admin" | "user" | "simplified";
 
 export interface User {
   id: string;
@@ -115,6 +116,22 @@ export interface User {
   /** The organization this user belongs to, or null. */
   org_id: string | null;
   created_at: string;
+}
+
+/** A minted, single-use token for the "log in with a QR code" flow — see api.users.createQrLoginToken. */
+export interface QrLoginToken {
+  token: string;
+  expires_at: string;
+  /** True when this token was minted with ttlMinutes: 0 — it never expires on its own. */
+  never_expires: boolean;
+  min_ttl_minutes: number;
+  max_ttl_minutes: number;
+}
+
+/** What a QR login token reveals — see api.auth.revealQrLoginCredentials. */
+export interface QrLoginCredentials {
+  username: string;
+  password: string;
 }
 
 export interface OrganizationMember {

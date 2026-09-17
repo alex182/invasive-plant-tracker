@@ -7,6 +7,8 @@ import type {
   PhotoPhase,
   Plant,
   PlantPhoto,
+  QrLoginCredentials,
+  QrLoginToken,
   Role,
   SessionUser,
   Species,
@@ -135,6 +137,8 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ currentPassword, newPassword }),
       }),
+    revealQrLoginCredentials: (token: string) =>
+      request<QrLoginCredentials>("/auth/login/qr", { method: "POST", body: JSON.stringify({ token }) }),
     impersonate: (userId: string) =>
       request<SessionUser>(`/auth/impersonate/${userId}`, { method: "POST" }),
     stopImpersonating: () => request<SessionUser>("/auth/stop-impersonating", { method: "POST" }),
@@ -147,6 +151,13 @@ export const api = {
       request<User>(`/users/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     resetPassword: (id: string, newPassword: string) =>
       request<User>(`/users/${id}/reset-password`, { method: "POST", body: JSON.stringify({ newPassword }) }),
+    remove: (id: string) => request<void>(`/users/${id}`, { method: "DELETE" }),
+    // ttlMinutes: 0 is a real, meaningful value ("never expires") — don't treat it as "omitted".
+    createQrLoginToken: (id: string, ttlMinutes?: number) =>
+      request<QrLoginToken>(`/users/${id}/qr-login-token`, {
+        method: "POST",
+        body: JSON.stringify(ttlMinutes !== undefined ? { ttl_minutes: ttlMinutes } : {}),
+      }),
   },
   organizations: {
     list: () => request<Organization[]>("/organizations"),

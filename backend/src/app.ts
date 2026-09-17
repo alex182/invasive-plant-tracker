@@ -10,7 +10,14 @@ import {
   backfillLookalikes,
   backfillRemovalMethods,
 } from "./db/seed";
-import { bootstrapAdmin, requireAuth, requireAdmin, sweepExpiredSessions } from "./lib/auth";
+import {
+  bootstrapAdmin,
+  requireAuth,
+  requireAdmin,
+  requireNotSimplified,
+  sweepExpiredSessions,
+  sweepExpiredQrTokens,
+} from "./lib/auth";
 import { authRouter } from "./routes/auth";
 import { usersRouter } from "./routes/users";
 import { organizationsRouter } from "./routes/organizations";
@@ -32,6 +39,7 @@ export function createApp(): Express {
   backfillRemovalMethods();
   bootstrapAdmin();
   sweepExpiredSessions();
+  sweepExpiredQrTokens();
 
   const app = express();
   app.use(cors());
@@ -53,7 +61,7 @@ export function createApp(): Express {
   app.use("/api/plants", plantsRouter);
   app.use("/api", treatmentsRouter);
   app.use("/api", photosRouter);
-  app.use("/api/export", exportRouter);
+  app.use("/api/export", requireNotSimplified, exportRouter);
   app.use("/api/identify", identifyRouter);
   app.use("/api/users", usersRouter); // per-route admin (or admin-impersonating) checks inside
   app.use("/api/organizations", requireAdmin, organizationsRouter);

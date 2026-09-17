@@ -1,0 +1,46 @@
+.banner {
+  position: sticky;
+  top: 0;
+  z-index: 19;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--bg-elevated-2);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.text {
+  flex: 1;
+  min-width: 200px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.installButton {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border: none;
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  min-height: 30px;
+}
+
+.dismiss {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1rem;
+  min-height: auto;
+  padding: 2px 6px;
+}

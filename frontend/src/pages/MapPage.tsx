@@ -30,7 +30,8 @@ function ClusteredMarkers({
 }: {
   plants: Plant[];
   speciesById: Map<string, Species>;
-  onSelect: (id: string) => void;
+  /** Omit to show the popup info without a "View detail" link — e.g. for a simplified account. */
+  onSelect?: (id: string) => void;
 }) {
   const map = useMap();
   const groupRef = useRef<L.MarkerClusterGroup | null>(null);
@@ -67,12 +68,14 @@ function ClusteredMarkers({
         ${plant.date_removed ? `<div>Removed: ${plant.date_removed}</div>` : ""}
         ${pending ? `<div>⏳ Pending sync</div>` : ""}
       `;
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "plant-popup-link";
-      btn.textContent = "View detail →";
-      btn.onclick = () => onSelect(plant.id);
-      el.appendChild(btn);
+      if (onSelect) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "plant-popup-link";
+        btn.textContent = "View detail →";
+        btn.onclick = () => onSelect(plant.id);
+        el.appendChild(btn);
+      }
 
       marker.bindPopup(el);
       group.addLayer(marker);
@@ -89,7 +92,8 @@ function PatchPolygons({
 }: {
   patches: Plant[];
   speciesById: Map<string, Species>;
-  onSelect: (id: string) => void;
+  /** Omit to show the popup info without a "View detail" link — e.g. for a simplified account. */
+  onSelect?: (id: string) => void;
 }) {
   return (
     <>
@@ -102,7 +106,7 @@ function PatchPolygons({
             key={patch.id}
             positions={patch.geometry as [number, number][]}
             pathOptions={{ color, fillColor: color, fillOpacity: 0.35, weight: 2, dashArray: pending ? "6 4" : undefined }}
-            eventHandlers={{ click: () => onSelect(patch.id) }}
+            eventHandlers={onSelect ? { click: () => onSelect(patch.id) } : {}}
           >
             <Popup>
               <div className="plant-popup">
@@ -111,9 +115,11 @@ function PatchPolygons({
                 <div>Identified: {patch.date_identified}</div>
                 {patch.date_removed && <div>Removed: {patch.date_removed}</div>}
                 {pending && <div>⏳ Pending sync</div>}
-                <button type="button" className="plant-popup-link" onClick={() => onSelect(patch.id)}>
-                  View detail →
-                </button>
+                {onSelect && (
+                  <button type="button" className="plant-popup-link" onClick={() => onSelect(patch.id)}>
+                    View detail →
+                  </button>
+                )}
               </div>
             </Popup>
           </Polygon>
@@ -261,12 +267,18 @@ export function MapPage() {
   const { species } = useSpecies();
   const { getPosition, loading: locating } = useGeolocation();
   const { user } = useAuth();
+  // A simplified account gets a read-only map — its own dedicated screen handles adding a plant,
+  // so no drop-pin, patch drawing/walking, or long-press-to-add here, and no drilling into a
+  // plant's full detail page (which is all edit/manage UI they can't use anyway).
+  const isSimplified = user?.role === "simplified";
   const [myPos, setMyPos] = useState<[number, number] | null>(null);
   const [myAccuracy, setMyAccuracy] = useState<number | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<Set<PlantStatus>>(new Set(STATUS_ORDER));
   const [speciesFilter, setSpeciesFilter] = useState<Set<string> | null>(null);
-  const [mineOnly, setMineOnly] = useState(true);
+  // Simplified accounts default to seeing everyone's plants — they're the community view here,
+  // not a personal one, and starting on "mine only" would show an all-but-empty map at first.
+  const [mineOnly, setMineOnly] = useState(!isSimplified);
   const [hint, setHint] = useState<string | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
@@ -348,7 +360,7 @@ export function MapPage() {
   }
 
   function handleLongPress(lat: number, lng: number) {
-    if (drawing) return;
+    if (drawing || isSimplified) return;
     navigate(`/add?lat=${lat}&lng=${lng}`);
   }
 
@@ -414,9 +426,13 @@ export function MapPage() {
         <ClusteredMarkers
           plants={markerPlants}
           speciesById={speciesById}
-          onSelect={(id) => navigate(`/plants/${id}`)}
+          onSelect={isSimplified ? undefined : (id) => navigate(`/plants/${id}`)}
         />
-        <PatchPolygons patches={patchPlants} speciesById={speciesById} onSelect={(id) => navigate(`/plants/${id}`)} />
+        <PatchPolygons
+          patches={patchPlants}
+          speciesById={speciesById}
+          onSelect={isSimplified ? undefined : (id) => navigate(`/plants/${id}`)}
+        />
         {drawPoints.length >= 3 ? (
           <Polygon
             positions={drawPoints}
@@ -551,28 +567,32 @@ export function MapPage() {
           >
             {locating ? "…" : "🎯"}
           </button>
-          <button
-            className={styles.fabButton}
-            onClick={() => startDrawing("walk")}
-            aria-label="Walk a patch outline using GPS"
-          >
-            🚶
-          </button>
-          <button
-            className={styles.fabButton}
-            onClick={() => startDrawing("tap")}
-            aria-label="Draw a patch outline"
-          >
-            ⬟
-          </button>
-          <button
-            className={styles.fabButton}
-            onClick={handleDropPin}
-            disabled={locating}
-            aria-label="Drop pin at current GPS location"
-          >
-            {locating ? "…" : "📍"}
-          </button>
+          {!isSimplified && (
+            <>
+              <button
+                className={styles.fabButton}
+                onClick={() => startDrawing("walk")}
+                aria-label="Walk a patch outline using GPS"
+              >
+                🚶
+              </button>
+              <button
+                className={styles.fabButton}
+                onClick={() => startDrawing("tap")}
+                aria-label="Draw a patch outline"
+              >
+                ⬟
+              </button>
+              <button
+                className={styles.fabButton}
+                onClick={handleDropPin}
+                disabled={locating}
+                aria-label="Drop pin at current GPS location"
+              >
+                {locating ? "…" : "📍"}
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

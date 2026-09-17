@@ -56,6 +56,44 @@ function widenPlantStatusCheck(): void {
   }
 }
 
+/**
+ * The `user` table was originally created with CHECK (role IN ('admin','user')). Same rebuild
+ * trick as widenPlantStatusCheck, to add the 'simplified' role (identify + add a plant only, no
+ * editing). Guarded on the stored DDL so it runs at most once.
+ */
+function widenUserRoleCheck(): void {
+  const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'user'").get() as
+    | { sql: string }
+    | undefined;
+  if (!row || row.sql.includes("'simplified'")) return;
+
+  const newTableSql = row.sql
+    .replace(/CREATE TABLE (IF NOT EXISTS )?"?user"?/i, "CREATE TABLE user_new")
+    .replace("'admin','user'", "'admin','user','simplified'");
+  if (!newTableSql.includes("'simplified'")) {
+    throw new Error("widenUserRoleCheck: could not rewrite the user CHECK constraint");
+  }
+
+  const cols = (db.prepare("PRAGMA table_info(user)").all() as { name: string }[]).map((c) => c.name).join(", ");
+
+  db.pragma("foreign_keys = OFF");
+  try {
+    db.transaction(() => {
+      db.exec(newTableSql);
+      db.exec(`INSERT INTO user_new (${cols}) SELECT ${cols} FROM user`);
+      db.exec("DROP TABLE user");
+      db.exec("ALTER TABLE user_new RENAME TO user");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_user_org ON user(org_id)");
+      const violations = db.pragma("foreign_key_check") as unknown[];
+      if (violations.length > 0) {
+        throw new Error(`user table rebuild left ${violations.length} foreign-key violation(s)`);
+      }
+    })();
+  } finally {
+    db.pragma("foreign_keys = ON");
+  }
+}
+
 /** Seed a plant_photo row from any legacy single `plant.photo_path`. Idempotent. */
 function backfillPlantPhotos(): void {
   const rows = db
@@ -198,6 +236,18 @@ export function migrate(): void {
 
     CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);
     CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor_id);
+
+    CREATE TABLE IF NOT EXISTS login_qr_token (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      created_by TEXT REFERENCES user(id),
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_login_qr_token_user ON login_qr_token(user_id);
   `);
 
   dropColumnIfPresent("species", "photo_url");
@@ -217,5 +267,6 @@ export function migrate(): void {
   db.exec("CREATE INDEX IF NOT EXISTS idx_user_org ON user(org_id)");
 
   widenPlantStatusCheck();
+  widenUserRoleCheck();
   backfillPlantPhotos();
 }

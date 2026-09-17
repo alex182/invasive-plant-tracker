@@ -142,6 +142,20 @@
   color: var(--text);
 }
 
+.dangerButton {
+  background: none;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  min-height: auto;
+  color: var(--danger);
+}
+
+.dangerButton:disabled {
+  opacity: 0.6;
+}
+
 .success {
   color: var(--status-removed);
   font-size: 0.85rem;

@@ -9,6 +9,7 @@ const TEST_ADMIN_USERNAME = "test-admin";
 const TEST_ADMIN_PASSWORD = "test-admin-password";
 
 let app: Express;
+let db: (typeof import("../db"))["db"];
 let agent: ReturnType<typeof supertest.agent>;
 let adminDisplayName: string;
 let adminId: string;
@@ -20,6 +21,9 @@ beforeAll(async () => {
   process.env.ADMIN_USERNAME = TEST_ADMIN_USERNAME;
   process.env.ADMIN_PASSWORD = TEST_ADMIN_PASSWORD;
   const { createApp } = await import("../app");
+  // Imported after DATA_DIR is set, and only dynamically, so this is the same test-scoped sqlite
+  // file the app itself opened — never the real dev database.
+  db = (await import("../db")).db;
   app = createApp();
   agent = supertest.agent(app);
   const login = await agent
@@ -973,5 +977,316 @@ describe("organizations", () => {
     const stillThere = await orgAdmin.get(`/api/plants/${plant.body.id}`);
     expect(stillThere.body.owner_id).toBe(carolId);
     expect(stillThere.body.owner_org_id).toBeNull();
+  });
+});
+
+describe("QR login", () => {
+  let qrUserId: string;
+
+  beforeAll(async () => {
+    const created = await agent.post("/api/users").send({
+      username: "qr-user",
+      password: "qr-user-password",
+      role: "user",
+      display_name: "QR User",
+    });
+    expect(created.status).toBe(201);
+    qrUserId = created.body.id;
+  });
+
+  it("only an admin can mint a login QR token", async () => {
+    const userAgent = supertest.agent(app);
+    await userAgent.post("/api/auth/login").send({ username: "qr-user", password: "qr-user-password" });
+    const forbidden = await userAgent.post(`/api/users/${qrUserId}/qr-login-token`);
+    expect(forbidden.status).toBe(403);
+  });
+
+  it("404s for an unknown user", async () => {
+    const res = await agent.post("/api/users/does-not-exist/qr-login-token");
+    expect(res.status).toBe(404);
+  });
+
+  it("a minted token reveals fresh credentials exactly once, which then log in normally", async () => {
+    const minted = await agent.post(`/api/users/${qrUserId}/qr-login-token`);
+    expect(minted.status).toBe(201);
+    expect(typeof minted.body.token).toBe("string");
+    expect(minted.body.token.length).toBeGreaterThan(20);
+
+    const anon = supertest.agent(app);
+    const revealed = await anon.post("/api/auth/login/qr").send({ token: minted.body.token });
+    expect(revealed.status).toBe(200);
+    expect(revealed.body.username).toBe("qr-user");
+    expect(typeof revealed.body.password).toBe("string");
+    expect(revealed.body.password.length).toBeGreaterThan(8);
+    // Revealing doesn't sign anyone in by itself.
+    expect((await anon.get("/api/auth/me")).status).toBe(401);
+
+    // The revealed credentials work as a completely ordinary login...
+    const loggedIn = await anon
+      .post("/api/auth/login")
+      .send({ username: revealed.body.username, password: revealed.body.password });
+    expect(loggedIn.status).toBe(200);
+    expect(loggedIn.body.username).toBe("qr-user");
+    expect((await anon.get("/api/auth/me")).status).toBe(200);
+
+    // ...and, unlike the reveal token, keep working for later logins too.
+    const loggedInAgain = await supertest(app)
+      .post("/api/auth/login")
+      .send({ username: revealed.body.username, password: revealed.body.password });
+    expect(loggedInAgain.status).toBe(200);
+
+    // Reusing the reveal token fails — it's single-use.
+    const replay = await supertest(app).post("/api/auth/login/qr").send({ token: minted.body.token });
+    expect(replay.status).toBe(401);
+  });
+
+  it("minting resets the user's password and signs out their other sessions", async () => {
+    await agent.post(`/api/users/${qrUserId}/reset-password`).send({ newPassword: "before-qr-password" });
+    const before = supertest.agent(app);
+    await before.post("/api/auth/login").send({ username: "qr-user", password: "before-qr-password" });
+    expect((await before.get("/api/auth/me")).status).toBe(200);
+
+    const minted = await agent.post(`/api/users/${qrUserId}/qr-login-token`);
+    expect(minted.status).toBe(201);
+
+    expect((await before.get("/api/auth/me")).status).toBe(401);
+    const oldLogin = await supertest(app)
+      .post("/api/auth/login")
+      .send({ username: "qr-user", password: "before-qr-password" });
+    expect(oldLogin.status).toBe(401);
+  });
+
+  it("rejects a bogus or missing token", async () => {
+    const missing = await supertest(app).post("/api/auth/login/qr").send({});
+    expect(missing.status).toBe(400);
+
+    const bogus = await supertest(app).post("/api/auth/login/qr").send({ token: "not-a-real-token" });
+    expect(bogus.status).toBe(401);
+  });
+
+  it("can't mint a token for a deactivated user", async () => {
+    await agent.patch(`/api/users/${qrUserId}`).send({ active: false });
+    const res = await agent.post(`/api/users/${qrUserId}/qr-login-token`);
+    expect(res.status).toBe(409);
+    await agent.patch(`/api/users/${qrUserId}`).send({ active: true });
+  });
+
+  it("honors a custom ttl_minutes, clamped to the reported bounds", async () => {
+    const short = await agent.post(`/api/users/${qrUserId}/qr-login-token`).send({ ttl_minutes: 1 });
+    expect(short.status).toBe(201);
+    const shortMs = new Date(short.body.expires_at).getTime() - Date.now();
+    expect(shortMs).toBeGreaterThan(0);
+    expect(shortMs).toBeLessThan(2 * 60 * 1000); // well under the default 10 minutes
+
+    const tooLong = await agent
+      .post(`/api/users/${qrUserId}/qr-login-token`)
+      .send({ ttl_minutes: short.body.max_ttl_minutes * 10 });
+    expect(tooLong.status).toBe(201);
+    const clampedMs = new Date(tooLong.body.expires_at).getTime() - Date.now();
+    expect(clampedMs).toBeLessThanOrEqual(short.body.max_ttl_minutes * 60 * 1000 + 1000);
+
+    const bad = await agent.post(`/api/users/${qrUserId}/qr-login-token`).send({ ttl_minutes: -5 });
+    expect(bad.status).toBe(400);
+  });
+
+  it("ttl_minutes: 0 mints a token that never expires", async () => {
+    const minted = await agent.post(`/api/users/${qrUserId}/qr-login-token`).send({ ttl_minutes: 0 });
+    expect(minted.status).toBe(201);
+    expect(minted.body.never_expires).toBe(true);
+    // Far enough out that it's effectively permanent, not just "clamped to the 24h max".
+    expect(new Date(minted.body.expires_at).getUTCFullYear()).toBeGreaterThan(new Date().getUTCFullYear() + 50);
+
+    const revealed = await supertest(app).post("/api/auth/login/qr").send({ token: minted.body.token });
+    expect(revealed.status).toBe(200);
+    expect(revealed.body.username).toBe("qr-user");
+  });
+
+  it("correctly rejects a token whose expiry has actually passed (same-day expiry, not just single-use)", async () => {
+    const minted = await agent.post(`/api/users/${qrUserId}/qr-login-token`).send({ ttl_minutes: 5 });
+    expect(minted.status).toBe(201);
+
+    // Back-date it by a minute, entirely within "today" — this is exactly the case a naive
+    // `expires_at > datetime('now')` string comparison gets wrong (see the julianday comment in
+    // lib/auth.ts), so this test would pass even on the broken query if it regressed.
+    const pastIso = new Date(Date.now() - 60 * 1000).toISOString();
+    db.prepare("UPDATE login_qr_token SET expires_at = ? WHERE user_id = ?").run(pastIso, qrUserId);
+
+    const revealed = await supertest(app).post("/api/auth/login/qr").send({ token: minted.body.token });
+    expect(revealed.status).toBe(401);
+  });
+});
+
+describe("delete user", () => {
+  it("404s for an unknown user", async () => {
+    const res = await agent.delete("/api/users/does-not-exist");
+    expect(res.status).toBe(404);
+  });
+
+  it("an admin can't delete their own account", async () => {
+    const res = await agent.delete(`/api/users/${adminId}`);
+    expect(res.status).toBe(400);
+  });
+
+  it("only an admin can delete a user", async () => {
+    const created = await agent.post("/api/users").send({
+      username: "delete-me-forbidden",
+      password: "delete-me-password",
+      role: "user",
+      display_name: "Delete Me Forbidden",
+    });
+    const targetAgent = supertest.agent(app);
+    await targetAgent.post("/api/auth/login").send({ username: "delete-me-forbidden", password: "delete-me-password" });
+
+    const forbidden = await targetAgent.delete(`/api/users/${created.body.id}`);
+    expect(forbidden.status).toBe(403);
+  });
+
+  it("deletes a plain user, orphans their plants, and invalidates their session", async () => {
+    const created = await agent.post("/api/users").send({
+      username: "delete-me",
+      password: "delete-me-password",
+      role: "user",
+      display_name: "Delete Me",
+    });
+    const targetId = created.body.id;
+
+    const targetAgent = supertest.agent(app);
+    await targetAgent.post("/api/auth/login").send({ username: "delete-me", password: "delete-me-password" });
+
+    const speciesRes = await agent.get("/api/species");
+    const plant = await targetAgent
+      .post("/api/plants")
+      .send({ species_id: speciesRes.body[0].id, latitude: 39.5, longitude: -94.6, date_identified: "2026-08-20" });
+    const plantId = plant.body.id;
+
+    const del = await agent.delete(`/api/users/${targetId}`);
+    expect(del.status).toBe(204);
+
+    expect((await agent.get("/api/users")).body.some((u: { id: string }) => u.id === targetId)).toBe(false);
+
+    // The plant survives, now unowned — same as a legacy pre-accounts plant.
+    const stillThere = await agent.get(`/api/plants/${plantId}`);
+    expect(stillThere.status).toBe(200);
+    expect(stillThere.body.owner_id).toBeNull();
+
+    expect((await targetAgent.get("/api/auth/me")).status).toBe(401);
+  });
+
+  it("deletes an admin who has an audit trail, minted QR tokens, and an active impersonation, without a foreign-key error", async () => {
+    const rootAgent = supertest.agent(app);
+    await rootAgent.post("/api/auth/login").send({ username: TEST_ADMIN_USERNAME, password: TEST_ADMIN_PASSWORD });
+
+    const doomedAdmin = await rootAgent.post("/api/users").send({
+      username: "doomed-admin",
+      password: "doomed-admin-password",
+      role: "admin",
+      display_name: "Doomed Admin",
+    });
+    const doomedId = doomedAdmin.body.id;
+
+    const doomedAgent = supertest.agent(app);
+    await doomedAgent.post("/api/auth/login").send({ username: "doomed-admin", password: "doomed-admin-password" });
+    // ^ leaves an auth.login row with actor_id = doomedId in the audit log.
+
+    const target = await doomedAgent.post("/api/users").send({
+      username: "impersonation-target",
+      password: "impersonation-target-password",
+      role: "user",
+      display_name: "Impersonation Target",
+    });
+    // A QR token this admin minted for someone else: login_qr_token.created_by = doomedId.
+    await doomedAgent.post(`/api/users/${target.body.id}/qr-login-token`);
+
+    // An in-flight impersonation started by this admin: session.impersonated_by = doomedId,
+    // on a session row keyed to the *target's* id, so it won't cascade away with the admin.
+    const impersonating = supertest.agent(app);
+    await impersonating.post("/api/auth/login").send({ username: "doomed-admin", password: "doomed-admin-password" });
+    await impersonating.post(`/api/auth/impersonate/${target.body.id}`);
+
+    const del = await rootAgent.delete(`/api/users/${doomedId}`);
+    expect(del.status).toBe(204);
+
+    // The impersonation session still works — it just quietly stops being flagged as one, since
+    // the admin who started it no longer exists to be the "real admin" behind it.
+    const me = await impersonating.get("/api/auth/me");
+    expect(me.status).toBe(200);
+    expect(me.body.username).toBe("impersonation-target");
+    expect(me.body.impersonating).toBe(false);
+
+    expect((await doomedAgent.get("/api/auth/me")).status).toBe(401);
+  });
+});
+
+describe("simplified role", () => {
+  let simplifiedAgent: ReturnType<typeof supertest.agent>;
+  let speciesId: string;
+  let plantId: string;
+
+  beforeAll(async () => {
+    const created = await agent.post("/api/users").send({
+      username: "simple-sam",
+      password: "simple-sam-password",
+      role: "simplified",
+      display_name: "Simple Sam",
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.role).toBe("simplified");
+
+    simplifiedAgent = supertest.agent(app);
+    const login = await simplifiedAgent
+      .post("/api/auth/login")
+      .send({ username: "simple-sam", password: "simple-sam-password" });
+    expect(login.status).toBe(200);
+    expect(login.body.role).toBe("simplified");
+
+    speciesId = (await agent.get("/api/species")).body[0].id;
+  });
+
+  it("can identify (species list) and add a plant, with a photo", async () => {
+    const create = await simplifiedAgent
+      .post("/api/plants")
+      .send({ species_id: speciesId, latitude: 39.05, longitude: -94.58, date_identified: "2026-08-20" });
+    expect(create.status).toBe(201);
+    expect(create.body.owner_id).toBeDefined();
+    plantId = create.body.id;
+
+    const photo = await simplifiedAgent
+      .post(`/api/plants/${plantId}/photos`)
+      .attach("photo", Buffer.from("fake-image-bytes"), "plant.jpg")
+      .field("phase", "before");
+    expect(photo.status).toBe(201);
+  });
+
+  it("can see plants on the map (list), but can't drill into, edit, delete, or otherwise manage any of them", async () => {
+    const list = await simplifiedAgent.get("/api/plants");
+    expect(list.status).toBe(200);
+    expect(list.body.some((p: { id: string }) => p.id === plantId)).toBe(true);
+
+    expect((await simplifiedAgent.get("/api/plants/duplicates")).status).toBe(403);
+    expect((await simplifiedAgent.get(`/api/plants/${plantId}`)).status).toBe(403);
+    expect((await simplifiedAgent.patch(`/api/plants/${plantId}`).send({ notes: "nope" })).status).toBe(403);
+    expect((await simplifiedAgent.delete(`/api/plants/${plantId}`)).status).toBe(403);
+    expect((await simplifiedAgent.post("/api/plants/bulk-delete").send({ plant_ids: [plantId] })).status).toBe(403);
+    expect((await simplifiedAgent.post(`/api/plants/${plantId}/regrowth`)).status).toBe(403);
+  });
+
+  it("can't touch treatments, existing photos, or export", async () => {
+    expect((await simplifiedAgent.get("/api/treatments")).status).toBe(403);
+    expect((await simplifiedAgent.get(`/api/plants/${plantId}/treatments`)).status).toBe(403);
+    expect(
+      (await simplifiedAgent.post(`/api/plants/${plantId}/treatments`).send({ date: "2026-08-20" })).status
+    ).toBe(403);
+    expect((await simplifiedAgent.get(`/api/plants/${plantId}/photos`)).status).toBe(403);
+    expect((await simplifiedAgent.get("/api/export/csv")).status).toBe(403);
+  });
+
+  it("still has normal access to identify, species, and its own account", async () => {
+    expect((await simplifiedAgent.get("/api/species")).status).toBe(200);
+    expect((await simplifiedAgent.get("/api/auth/me")).status).toBe(200);
+  });
+
+  it("can't be granted admin-only powers just by role name — non-admin routes stay blocked too", async () => {
+    expect((await simplifiedAgent.get("/api/users")).status).toBe(403);
+    expect((await simplifiedAgent.get("/api/organizations")).status).toBe(403);
   });
 });

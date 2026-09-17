@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
-import { canMutatePlant, type AuthedRequest } from "../lib/auth";
+import { canMutatePlant, requireNotSimplified, type AuthedRequest } from "../lib/auth";
 import { recordAudit } from "../lib/audit";
 
 export const treatmentsRouter = Router();
@@ -30,12 +30,17 @@ function plantExists(plantId: string): boolean {
   return !!db.prepare("SELECT 1 FROM plant WHERE id = ?").get(plantId);
 }
 
-treatmentsRouter.get("/treatments", (_req, res) => {
+// Treatments are entirely a "manage over time" feature — no route below is part of the
+// identify-and-add flow a simplified account is limited to. Applied per-route rather than via
+// treatmentsRouter.use(...): this router is mounted at the same generic "/api" prefix as
+// photosRouter, and an unscoped router.use() would run for *any* request that falls through to
+// that mount point — including ones meant for photosRouter's routes, not just this router's own.
+treatmentsRouter.get("/treatments", requireNotSimplified, (_req, res) => {
   const rows = db.prepare("SELECT * FROM treatment ORDER BY date DESC").all();
   res.json(rows);
 });
 
-treatmentsRouter.get("/plants/:plantId/treatments", (req, res) => {
+treatmentsRouter.get("/plants/:plantId/treatments", requireNotSimplified, (req, res) => {
   if (!plantExists(req.params.plantId)) {
     res.status(404).json({ error: "plant not found" });
     return;
@@ -46,7 +51,7 @@ treatmentsRouter.get("/plants/:plantId/treatments", (req, res) => {
   res.json(rows);
 });
 
-treatmentsRouter.post("/plants/:plantId/treatments", (req: AuthedRequest, res) => {
+treatmentsRouter.post("/plants/:plantId/treatments", requireNotSimplified, (req: AuthedRequest, res) => {
   const plant = plantOwner(req.params.plantId);
   if (!plant) {
     res.status(404).json({ error: "plant not found" });
@@ -92,7 +97,7 @@ treatmentsRouter.post("/plants/:plantId/treatments", (req: AuthedRequest, res) =
   res.status(201).json(row);
 });
 
-treatmentsRouter.patch("/treatments/:id", (req: AuthedRequest, res) => {
+treatmentsRouter.patch("/treatments/:id", requireNotSimplified, (req: AuthedRequest, res) => {
   const existing = db.prepare("SELECT * FROM treatment WHERE id = ?").get(req.params.id) as
     | TreatmentRow
     | undefined;

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
 import { upload, removeUploadedFile } from "../lib/uploads";
-import { canMutatePlant, type AuthedRequest } from "../lib/auth";
+import { canMutatePlant, requireNotSimplified, type AuthedRequest } from "../lib/auth";
 
 export const photosRouter = Router();
 
@@ -84,7 +84,7 @@ export function insertPlantPhoto(args: {
   return db.prepare("SELECT * FROM plant_photo WHERE id = ?").get(id) as PhotoRow;
 }
 
-photosRouter.get("/plants/:id/photos", (req, res) => {
+photosRouter.get("/plants/:id/photos", requireNotSimplified, (req, res) => {
   if (!plantExists(req.params.id)) {
     res.status(404).json({ error: "plant not found" });
     return;
@@ -95,6 +95,9 @@ photosRouter.get("/plants/:id/photos", (req, res) => {
   res.json(rows);
 });
 
+// Deliberately not requireNotSimplified: this is also how the simplified add-a-plant flow attaches
+// its one "before" photo right after creating the plant. canMutatePlant below still limits it to
+// their own plant either way.
 photosRouter.post("/plants/:id/photos", upload.single("photo"), (req: AuthedRequest, res) => {
   const plant = plantOwner(req.params.id);
   if (!plant) {
@@ -139,7 +142,7 @@ photosRouter.post("/plants/:id/photos", upload.single("photo"), (req: AuthedRequ
   res.status(201).json(photo);
 });
 
-photosRouter.patch("/photos/:photoId", (req: AuthedRequest, res) => {
+photosRouter.patch("/photos/:photoId", requireNotSimplified, (req: AuthedRequest, res) => {
   const existing = db.prepare("SELECT * FROM plant_photo WHERE id = ?").get(req.params.photoId) as
     | PhotoRow
     | undefined;
@@ -188,7 +191,7 @@ photosRouter.patch("/photos/:photoId", (req: AuthedRequest, res) => {
   res.json(db.prepare("SELECT * FROM plant_photo WHERE id = ?").get(req.params.photoId));
 });
 
-photosRouter.delete("/photos/:photoId", (req: AuthedRequest, res) => {
+photosRouter.delete("/photos/:photoId", requireNotSimplified, (req: AuthedRequest, res) => {
   const existing = db.prepare("SELECT * FROM plant_photo WHERE id = ?").get(req.params.photoId) as
     | PhotoRow
     | undefined;
